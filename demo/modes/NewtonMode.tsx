@@ -583,6 +583,185 @@ function NamesScreen({ screen, onNavigate, onExtras }: {
   );
 }
 
+// --- Dates Screen ---
+
+const SAMPLE_EVENTS: Record<string, string[]> = {
+  "2026-04-04": ["Team standup 9am", "Lunch with Ada"],
+  "2026-04-07": ["Dentist 2pm"],
+  "2026-04-15": ["Tax day"],
+  "2026-04-22": ["Earth Day picnic"],
+};
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function DatesScreen({ screen, onNavigate, onExtras }: {
+  screen: AppScreen;
+  onNavigate: (s: Screen) => void;
+  onExtras: () => void;
+}) {
+  const [year, setYear] = useState(2026);
+  const [month, setMonth] = useState(3); // April (0-indexed)
+  const [selectedDay, setSelectedDay] = useState(4);
+  const { engine, offsetX, offsetY } = useLCD();
+
+  useCancel(onExtras);
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const onLeft = useCallback(() => {
+    setSelectedDay(d => Math.max(1, d - 1));
+    return true;
+  }, []);
+
+  const onRight = useCallback(() => {
+    setSelectedDay(d => {
+      const dim = new Date(year, month + 1, 0).getDate();
+      return Math.min(dim, d + 1);
+    });
+    return true;
+  }, [year, month]);
+
+  const onUp = useCallback(() => {
+    setSelectedDay(d => Math.max(1, d - 7));
+    return true;
+  }, []);
+
+  const onDown = useCallback(() => {
+    setSelectedDay(d => {
+      const dim = new Date(year, month + 1, 0).getDate();
+      return Math.min(dim, d + 7);
+    });
+    return true;
+  }, [year, month]);
+
+  const onActivate = useCallback(() => {
+    setMonth(m => {
+      if (m >= 11) {
+        setYear(y => y + 1);
+        return 0;
+      }
+      return m + 1;
+    });
+    setSelectedDay(1);
+    return true;
+  }, []);
+
+  useFocus({
+    rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
+    order: 10,
+    onUp,
+    onDown,
+    onLeft,
+    onRight,
+    onActivate,
+  });
+
+  useEffect(() => {
+    const fb = engine.fb;
+    const ox = offsetX;
+    const oy = offsetY;
+
+    fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
+
+    const CELL_W = Math.floor((W - 8) / 7);
+    const CAL_X = 4;
+    const CAL_Y = CONTENT_Y + 16;
+    const GRID_Y = CAL_Y + 12;
+    const CELL_H_CAL = 14;
+
+    // Month header
+    const headerY = CONTENT_Y + 4;
+    const monthLabel = `${MONTH_NAMES[month]} ${year}`;
+    const labelW = font.measureText(monthLabel);
+    const labelX = ox + Math.floor((W - labelW) / 2);
+    font.drawText(fb, "<", ox + 4, headerY, { intensity: 0.7 });
+    font.drawText(fb, monthLabel, labelX, headerY, { intensity: 1 });
+    font.drawText(fb, ">", ox + W - 4 - font.measureText(">"), headerY, { intensity: 0.7 });
+
+    // Day-of-week headers
+    const DOW = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+    DOW.forEach((d, i) => {
+      const dx = ox + CAL_X + i * CELL_W + Math.floor((CELL_W - font.measureText(d)) / 2);
+      font.drawText(fb, d, dx, CAL_Y, { intensity: 0.8 });
+    });
+
+    // Divider under headers
+    const divY1 = CAL_Y + 10;
+    for (let x = ox; x < ox + W; x++) fb.set(x, divY1, 0.3);
+
+    // Calendar grid
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysCount = new Date(year, month + 1, 0).getDate();
+
+    for (let day = 1; day <= daysCount; day++) {
+      const slot = firstDay + day - 1;
+      const col = slot % 7;
+      const row = Math.floor(slot / 7);
+      const cellX = ox + CAL_X + col * CELL_W;
+      const cellY = oy + GRID_Y + row * CELL_H_CAL;
+
+      const mm = String(month + 1).padStart(2, "0");
+      const dd = String(day).padStart(2, "0");
+      const key = `${year}-${mm}-${dd}`;
+      const hasEvents = !!SAMPLE_EVENTS[key];
+
+      const numStr = String(day);
+      const numW = font.measureText(numStr);
+      const numX = cellX + Math.floor((CELL_W - numW) / 2);
+      const numY = cellY + 2;
+
+      if (day === selectedDay) {
+        // Inverted
+        fb.fillRect(cellX + 1, cellY, CELL_W - 2, CELL_H_CAL - 1, 1);
+        font.drawText(fb, numStr, numX, numY, { intensity: 0 });
+      } else {
+        font.drawText(fb, numStr, numX, numY, { intensity: 1 });
+        if (hasEvents) {
+          const dotX = cellX + Math.floor(CELL_W / 2);
+          const dotY = cellY + CELL_H_CAL - 3;
+          fb.set(dotX, dotY, 0.8);
+          fb.set(dotX + 1, dotY, 0.8);
+        }
+      }
+    }
+
+    // Rows used
+    const totalSlots = firstDay + daysCount;
+    const rowsUsed = Math.ceil(totalSlots / 7);
+    const gridBottom = oy + GRID_Y + rowsUsed * CELL_H_CAL + 2;
+
+    // Divider below grid
+    for (let x = ox; x < ox + W; x++) fb.set(x, gridBottom, 0.3);
+
+    // Event detail
+    const eventY = gridBottom + 4;
+    const mm2 = String(month + 1).padStart(2, "0");
+    const dd2 = String(selectedDay).padStart(2, "0");
+    const selKey = `${year}-${mm2}-${dd2}`;
+    const events = SAMPLE_EVENTS[selKey];
+
+    if (events && events.length > 0) {
+      events.forEach((ev, i) => {
+        font.drawText(fb, `* ${ev}`, ox + 6, eventY + i * 12, { intensity: 1 });
+      });
+    } else {
+      font.drawText(fb, "No events", ox + 6, eventY, { intensity: 0.4 });
+    }
+
+    engine.markDirty();
+  }, [engine, offsetX, offsetY, year, month, selectedDay]);
+
+  return (
+    <>
+      <TitleBar title="Dates" screen={screen} onNavigate={onNavigate} />
+      <BottomBar onExtras={onExtras} />
+    </>
+  );
+}
+
 // --- Stub Screens ---
 
 function StubScreen({ title, screen, onNavigate, onExtras }: {
@@ -657,7 +836,7 @@ export function NewtonMode({ onExit }: { onExit: () => void }) {
         {screen === "extras" && <ExtrasScreen onNavigate={setScreen} onExit={onExit} />}
         {screen === "notepad" && <NotepadScreen screen="notepad" onNavigate={setScreen} onExtras={goExtras} />}
         {screen === "names" && <NamesScreen screen="names" onNavigate={setScreen} onExtras={goExtras} />}
-        {screen === "dates" && <StubScreen title="Dates" screen="dates" onNavigate={setScreen} onExtras={goExtras} />}
+        {screen === "dates" && <DatesScreen screen="dates" onNavigate={setScreen} onExtras={goExtras} />}
       </LCDScreen>
     </div>
   );
