@@ -22,9 +22,9 @@ type Mode = "picker" | "nokia" | "nokia9210" | "newton" | "palm" | "blackberry" 
 const MODES: { key: Mode; label: string; detail: string }[] = [
   { key: "gameboy", label: "Game Boy", detail: "160x144  1989" },
   { key: "pager", label: "Motorola Pager", detail: "120x32  1990" },
-  { key: "tamagotchi", label: "Tamagotchi", detail: "32x30  1996" },
   { key: "newton", label: "Apple Newton", detail: "240x320  1993" },
   { key: "palm", label: "Palm Pilot", detail: "160x160  1996" },
+  { key: "tamagotchi", label: "Tamagotchi", detail: "32x30  1996" },
   { key: "nokia", label: "Nokia 6110", detail: "84x48  1997" },
   { key: "blackberry", label: "BlackBerry 850", detail: "132x65  1999" },
   { key: "nokia9210", label: "Nokia 9210", detail: "320x100  2001" },
