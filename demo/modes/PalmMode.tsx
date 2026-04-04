@@ -32,18 +32,23 @@ function useCancel(onBack: () => void) {
   }, [engine, onBack]);
 }
 
-function ClearRect({ x, y, width, height, deps }: {
-  x: number; y: number; width: number; height: number; deps: unknown[];
-}) {
-  const { engine, offsetX, offsetY } = useLCD();
-  useEffect(() => {
-    engine.fb.fillRect(x + offsetX, y + offsetY, width, height, 0);
-    engine.markDirty();
-  }, [engine, x, y, width, height, offsetX, offsetY, ...deps]);
-  return null;
+function formatPalmDate(d: Date): string {
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const yr = String(d.getFullYear()).slice(-2);
+  return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}, ${yr}`;
 }
 
-// --- Status Bar ---
+function formatPalmTime(): string {
+  const now = new Date();
+  let h = now.getHours();
+  const m = now.getMinutes();
+  const ampm = h >= 12 ? "pm" : "am";
+  h = h % 12 || 12;
+  return `${h}:${m < 10 ? "0" : ""}${m} ${ampm}`;
+}
+
+// --- Status Bar (bordered frame, PalmOS style) ---
 
 function StatusBar({ title }: { title: string }) {
   const { engine, offsetX, offsetY } = useLCD();
@@ -56,7 +61,7 @@ function StatusBar({ title }: { title: string }) {
     // Clear status area
     fb.fillRect(ox, oy, W, STATUS_H, 0);
 
-    // Border around status bar
+    // 1px bordered rectangle around entire status bar
     for (let x = 0; x < W; x++) {
       fb.set(ox + x, oy, 1);
       fb.set(ox + x, oy + STATUS_H - 1, 1);
@@ -67,15 +72,16 @@ function StatusBar({ title }: { title: string }) {
     }
 
     // Time on left
-    font.drawText(fb, "10:40 am", ox + 3, oy + 3, { intensity: 1 });
+    const timeStr = formatPalmTime();
+    font.drawText(fb, timeStr, ox + 3, oy + 3, { intensity: 1 });
 
-    // Battery icon (small filled rectangles)
-    const batX = ox + 52;
+    // Battery icon: 3 filled segments + 1 hollow segment
+    const batX = ox + 55;
     const batY = oy + 4;
     for (let i = 0; i < 3; i++) {
       fb.fillRect(batX + i * 4, batY, 3, 4, 1);
     }
-    // Empty segment
+    // Hollow segment
     for (let bx = 0; bx < 3; bx++) {
       fb.set(batX + 12 + bx, batY, 1);
       fb.set(batX + 12 + bx, batY + 3, 1);
@@ -85,13 +91,13 @@ function StatusBar({ title }: { title: string }) {
     fb.set(batX + 12, batY + 2, 1);
     fb.set(batX + 14, batY + 2, 1);
 
-    // Title/category on right
+    // Category/title on right with dropdown triangle
     const catText = title;
     const catW = font.measureText(catText);
-    font.drawText(fb, catText, ox + W - catW - 10, oy + 3, { intensity: 1 });
+    font.drawText(fb, catText, ox + W - catW - 12, oy + 3, { intensity: 1 });
 
-    // Small triangle (▾)
-    const triX = ox + W - 7;
+    // Small triangle (inverted V)
+    const triX = ox + W - 8;
     const triY = oy + 4;
     fb.set(triX, triY, 1);
     fb.set(triX + 1, triY, 1);
@@ -103,7 +109,7 @@ function StatusBar({ title }: { title: string }) {
     fb.set(triX + 3, triY + 1, 1);
     fb.set(triX + 2, triY + 2, 1);
 
-    // Divider below status bar
+    // Thin divider line below status bar
     for (let x = 0; x < W; x++) {
       fb.set(ox + x, oy + STATUS_H, 1);
     }
@@ -133,11 +139,11 @@ const APPS: AppItem[] = [
 
 const GRID_COLS = 3;
 const ICON_SCALE = 2;
-const ICON_PX = 8 * ICON_SCALE; // 16
-const CELL_W = Math.floor(W / GRID_COLS);
-const CELL_H = 32;
+const ICON_PX = 8 * ICON_SCALE; // 16px at scale 2
+const CELL_W = Math.floor(W / GRID_COLS); // ~53px
+const CELL_H = 36; // Icon + label + spacing (authentic Palm row height)
 const GRID_START_X = Math.floor((W - GRID_COLS * CELL_W) / 2);
-const GRID_START_Y = CONTENT_Y + 6;
+const GRID_START_Y = CONTENT_Y + 4;
 
 function HomeScreen({ onNavigate, onExit }: {
   onNavigate: (s: Screen) => void;
@@ -192,6 +198,7 @@ function HomeScreen({ onNavigate, onExit }: {
     const ox = offsetX;
     const oy = offsetY;
 
+    // Clear content area
     fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
 
     APPS.forEach((app, i) => {
@@ -201,19 +208,19 @@ function HomeScreen({ onNavigate, onExit }: {
       const cy = GRID_START_Y + row * CELL_H;
       const isSel = i === selected;
 
-      // Inverted selection: fill black rect behind icon+label
+      // Inverted selection: black rect behind icon + label
       if (isSel) {
         const selX = cx - Math.floor(ICON_PX / 2) - 2;
         const selY = cy - 1;
         const selW = ICON_PX + 4;
-        const selH = ICON_PX + 12;
+        const selH = ICON_PX + 14;
         fb.fillRect(ox + selX, oy + selY, selW, selH, 1);
       }
 
-      // Label
+      // Label centered below icon
       const labelW = font.measureText(app.name);
       const labelX = cx - Math.floor(labelW / 2);
-      font.drawText(fb, app.name, ox + labelX, oy + cy + ICON_PX + 2, {
+      font.drawText(fb, app.name, ox + labelX, oy + cy + ICON_PX + 3, {
         intensity: isSel ? 0 : 1,
       });
     });
@@ -245,7 +252,7 @@ function HomeScreen({ onNavigate, onExit }: {
   );
 }
 
-// --- Date Book Screen ---
+// --- Date Book Screen (day view) ---
 
 const TIME_SLOTS = ["8:00", "9:00", "10:00", "11:00", "12:00", "1:00", "2:00", "3:00", "4:00", "5:00"];
 const APPOINTMENTS: Record<number, string> = {
@@ -263,7 +270,7 @@ function DateBookScreen({ onHome }: { onHome: () => void }) {
   useCancel(onHome);
 
   const ROW_H = 12;
-  const HEADER_H = 12;
+  const HEADER_H = 20; // Title + date + divider
   const visibleCount = Math.floor((CONTENT_H - HEADER_H) / ROW_H);
   const maxScroll = Math.max(0, TIME_SLOTS.length - visibleCount);
 
@@ -301,15 +308,19 @@ function DateBookScreen({ onHome }: { onHome: () => void }) {
 
     fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
 
-    // Date header
-    const dateStr = "Sat, Apr 4, 2026";
+    // Date header (centered)
+    const dateStr = formatPalmDate(new Date());
     const dateW = font.measureText(dateStr);
     const dateX = ox + Math.floor((W - dateW) / 2);
     font.drawText(fb, dateStr, dateX, CONTENT_Y + oy + 2, { intensity: 1 });
 
-    // Divider under date
-    const divY = CONTENT_Y + oy + HEADER_H - 1;
+    // Thin divider under date
+    const divY = CONTENT_Y + oy + 11;
     for (let x = ox; x < ox + W; x++) fb.set(x, divY, 1);
+
+    // "< >" arrows flanking date for day navigation
+    font.drawText(fb, "<", ox + 3, CONTENT_Y + oy + 2, { intensity: 1 });
+    font.drawText(fb, ">", ox + W - 8, CONTENT_Y + oy + 2, { intensity: 1 });
 
     // Time slots
     const listY = CONTENT_Y + oy + HEADER_H;
@@ -323,14 +334,23 @@ function DateBookScreen({ onHome }: { onHome: () => void }) {
       }
 
       const intensity = idx === selected ? 0 : 1;
+
+      // Time label
       font.drawText(fb, slot, ox + 2, rowY + 2, { intensity });
 
+      // Thin vertical divider after time column
+      const divX = ox + 30;
+      if (idx !== selected) {
+        for (let dy = 0; dy < ROW_H; dy++) fb.set(divX, rowY + dy, 0.4);
+      }
+
+      // Appointment text
       const appt = APPOINTMENTS[idx];
       if (appt) {
         font.drawText(fb, appt, ox + 34, rowY + 2, { intensity });
       }
 
-      // Row divider
+      // Horizontal row divider
       if (idx !== selected) {
         for (let x = ox; x < ox + W; x++) fb.set(x, rowY + ROW_H - 1, 0.3);
       }
@@ -342,7 +362,7 @@ function DateBookScreen({ onHome }: { onHome: () => void }) {
   return <StatusBar title="Date Book" />;
 }
 
-// --- Address Screen ---
+// --- Address Book Screen ---
 
 interface PalmContact {
   lastName: string;
@@ -428,20 +448,28 @@ function AddressScreen({ onHome }: { onHome: () => void }) {
       let cy = CONTENT_Y + oy + 4;
       const cx = ox + 4;
 
-      // Name underlined
+      // Name (bold effect: draw twice offset by 1)
       const fullName = `${c.firstName} ${c.lastName}`;
       font.drawText(fb, fullName, cx, cy, { intensity: 1 });
-      const nameW = font.measureText(fullName);
-      for (let x = cx; x < cx + nameW; x++) fb.set(x, cy + 7, 1);
-      cy += 14;
+      font.drawText(fb, fullName, cx + 1, cy, { intensity: 1 });
+      const nameW = font.measureText(fullName) + 1;
+      for (let x = cx; x < cx + nameW; x++) fb.set(x, cy + 8, 1);
+      cy += 16;
 
-      font.drawText(fb, `Work: ${c.work}`, cx, cy, { intensity: 1 });
+      font.drawText(fb, "Work:", cx, cy, { intensity: 1 });
+      font.drawText(fb, c.work, cx + 36, cy, { intensity: 1 });
       cy += 12;
-      font.drawText(fb, `Home: ${c.home}`, cx, cy, { intensity: 1 });
+
+      font.drawText(fb, "Home:", cx, cy, { intensity: 1 });
+      font.drawText(fb, c.home, cx + 36, cy, { intensity: 1 });
       cy += 12;
-      font.drawText(fb, `Addr: ${c.address}`, cx, cy, { intensity: 1 });
+
+      font.drawText(fb, "Addr:", cx, cy, { intensity: 1 });
+      font.drawText(fb, c.address, cx + 36, cy, { intensity: 1 });
       cy += 12;
-      font.drawText(fb, `City: ${c.city}`, cx, cy, { intensity: 1 });
+
+      font.drawText(fb, "City:", cx, cy, { intensity: 1 });
+      font.drawText(fb, c.city, cx + 36, cy, { intensity: 1 });
     } else {
       const visible = ADDRESS_DATA.slice(scrollY, scrollY + visibleCount);
       visible.forEach((c, i) => {
@@ -456,7 +484,7 @@ function AddressScreen({ onHome }: { onHome: () => void }) {
         const displayName = `${c.lastName}, ${c.firstName}`;
         font.drawText(fb, displayName, ox + 4, rowY + 2, { intensity });
 
-        // Row divider
+        // Thin divider between rows
         if (idx !== selected) {
           for (let x = ox; x < ox + W; x++) fb.set(x, rowY + CONTACT_ROW_H - 1, 0.3);
         }
@@ -554,32 +582,32 @@ function TodoScreen({ onHome }: { onHome: () => void }) {
       }
 
       const intensity = idx === selected ? 0 : 1;
-
-      // Checkbox
-      const cbX = ox + 3;
-      const cbY = rowY + 2;
-      if (idx === selected) {
-        for (let bx = 0; bx < 7; bx++) { fb.set(cbX + bx, cbY, 0); fb.set(cbX + bx, cbY + 6, 0); }
-        for (let by = 0; by < 7; by++) { fb.set(cbX, cbY + by, 0); fb.set(cbX + 6, cbY + by, 0); }
-        if (item.checked) {
-          fb.fillRect(cbX + 2, cbY + 2, 3, 3, 0);
-        }
-      } else {
-        for (let bx = 0; bx < 7; bx++) { fb.set(cbX + bx, cbY, 1); fb.set(cbX + bx, cbY + 6, 1); }
-        for (let by = 0; by < 7; by++) { fb.set(cbX, cbY + by, 1); fb.set(cbX + 6, cbY + by, 1); }
-        if (item.checked) {
-          fb.fillRect(cbX + 2, cbY + 2, 3, 3, 1);
-        }
-      }
+      const inv = idx === selected; // inverted row
 
       // Priority number
-      font.drawText(fb, String(item.priority), ox + 13, rowY + 2, { intensity });
+      font.drawText(fb, String(item.priority), ox + 3, rowY + 2, { intensity });
+
+      // Checkbox (7x7 box)
+      const cbX = ox + 12;
+      const cbY = rowY + 2;
+      for (let bx = 0; bx < 7; bx++) {
+        fb.set(cbX + bx, cbY, inv ? 0 : 1);
+        fb.set(cbX + bx, cbY + 6, inv ? 0 : 1);
+      }
+      for (let by = 0; by < 7; by++) {
+        fb.set(cbX, cbY + by, inv ? 0 : 1);
+        fb.set(cbX + 6, cbY + by, inv ? 0 : 1);
+      }
+      // Check mark (filled center)
+      if (item.checked) {
+        fb.fillRect(cbX + 2, cbY + 2, 3, 3, inv ? 0 : 1);
+      }
 
       // Text
       font.drawText(fb, item.text, ox + 22, rowY + 2, { intensity });
 
       // Row divider
-      if (idx !== selected) {
+      if (!inv) {
         for (let x = ox; x < ox + W; x++) fb.set(x, rowY + TODO_ROW_H - 1, 0.3);
       }
     });
@@ -587,7 +615,7 @@ function TodoScreen({ onHome }: { onHome: () => void }) {
     engine.markDirty();
   }, [engine, offsetX, offsetY, items, selected, scrollY, visibleCount, maxScroll]);
 
-  return <StatusBar title="To Do List" />;
+  return <StatusBar title="To Do" />;
 }
 
 // --- Memo Pad Screen ---
@@ -610,31 +638,40 @@ const MEMO_ROW_H = 12;
 function MemoPadScreen({ onHome }: { onHome: () => void }) {
   const [selected, setSelected] = useState(0);
   const [viewing, setViewing] = useState(false);
+  const [memoScroll, setMemoScroll] = useState(0);
   const { engine, offsetX, offsetY } = useLCD();
 
   const onCancel = useCallback(() => {
-    if (viewing) setViewing(false);
+    if (viewing) { setViewing(false); setMemoScroll(0); }
     else onHome();
   }, [viewing, onHome]);
 
   useCancel(onCancel);
 
   const onUp = useCallback(() => {
-    if (viewing) return false;
+    if (viewing) {
+      setMemoScroll(s => Math.max(0, s - 1));
+      return true;
+    }
     setSelected(s => Math.max(0, s - 1));
     return true;
   }, [viewing]);
 
   const onDown = useCallback(() => {
-    if (viewing) return false;
+    if (viewing) {
+      const lines = MEMOS[selected].body.split("\n");
+      setMemoScroll(s => Math.min(lines.length - 1, s + 1));
+      return true;
+    }
     setSelected(s => Math.min(MEMOS.length - 1, s + 1));
     return true;
-  }, [viewing]);
+  }, [viewing, selected]);
 
   const onActivate = useCallback(() => {
-    setViewing(v => !v);
+    if (viewing) { setViewing(false); setMemoScroll(0); }
+    else setViewing(true);
     return true;
-  }, []);
+  }, [viewing]);
 
   useFocus({
     rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
@@ -653,19 +690,21 @@ function MemoPadScreen({ onHome }: { onHome: () => void }) {
       const memo = MEMOS[selected];
       let cy = CONTENT_Y + oy + 2;
 
-      // Title underlined
+      // Title (bold: draw offset)
       font.drawText(fb, memo.title, ox + 4, cy, { intensity: 1 });
-      const titleW = font.measureText(memo.title);
-      for (let x = ox + 4; x < ox + 4 + titleW; x++) fb.set(x, cy + 7, 1);
-      cy += 12;
+      font.drawText(fb, memo.title, ox + 5, cy, { intensity: 1 });
+      const titleW = font.measureText(memo.title) + 1;
+      for (let x = ox + 4; x < ox + 4 + titleW; x++) fb.set(x, cy + 8, 1);
+      cy += 14;
 
-      // Divider
+      // Thin divider
       for (let x = ox; x < ox + W; x++) fb.set(x, cy, 0.4);
       cy += 4;
 
-      // Body lines
+      // Body lines (scrollable)
       const lines = memo.body.split("\n");
-      for (const line of lines) {
+      const visibleLines = lines.slice(memoScroll);
+      for (const line of visibleLines) {
         if (cy > CONTENT_Y + oy + CONTENT_H - 8) break;
         font.drawText(fb, line, ox + 4, cy, { intensity: 1 });
         cy += 10;
@@ -688,7 +727,7 @@ function MemoPadScreen({ onHome }: { onHome: () => void }) {
     }
 
     engine.markDirty();
-  }, [engine, offsetX, offsetY, selected, viewing]);
+  }, [engine, offsetX, offsetY, selected, viewing, memoScroll]);
 
   return <StatusBar title="Memo Pad" />;
 }
@@ -816,7 +855,7 @@ function CalcScreen({ onHome }: { onHome: () => void }) {
 
     fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
 
-    // Display
+    // Display area
     const displayText = display.length > 10 ? display.slice(0, 10) : display;
     const textW = font.measureText(displayText, 2);
     const textX = ox + W - textW - 4;
@@ -846,7 +885,7 @@ function CalcScreen({ onHome }: { onHome: () => void }) {
           col === selCol || (row === 4 && col === 0 && selCol <= 1)
         );
 
-        // Border
+        // Thin button borders
         for (let i = 0; i < btnW; i++) {
           fb.set(bx + i, by, 0.4);
           fb.set(bx + i, by + CALC_BTN_H - 1, 0.4);
@@ -960,11 +999,22 @@ function PrefsScreen({ onHome, theme, onThemeChange, camera, onCameraChange, pix
       const valueW = font.measureText(value);
       const isSel = row === selectedRow;
 
-      font.drawText(fb, label, ox + 6, rowY, { intensity: 1 });
-      font.drawText(fb, value, ox + W - valueW - 6, rowY, { intensity: isSel ? 1 : 0.6 });
+      // Selected row: inverted bar
+      if (isSel) {
+        fb.fillRect(ox, rowY - 2, W, ROW_SPACING, 1);
+      }
+
+      font.drawText(fb, label, ox + 6, rowY, { intensity: isSel ? 0 : 1 });
+      font.drawText(fb, value, ox + W - valueW - 6, rowY, { intensity: isSel ? 0 : 0.6 });
+
+      // Divider between rows
+      if (!isSel && row < ROW_COUNT - 1) {
+        const divY = rowY + ROW_SPACING - 3;
+        for (let x = ox; x < ox + W; x++) fb.set(x, divY, 0.2);
+      }
     }
 
-    // Divider + hint
+    // Hint at bottom
     const noticeY = FIRST_ROW_Y + ROW_COUNT * ROW_SPACING + 6 + oy;
     for (let x = ox; x < ox + W; x++) fb.set(x, noticeY - 3, 0.3);
     const hint = "Changes apply live";
@@ -1023,7 +1073,7 @@ export function PalmMode({ onExit }: { onExit: () => void }) {
       overflow: "hidden",
     }}>
       <LCDScreen width={W} height={H} pixelSize={pixelSize} theme={theme as ThemePresetName} camera={camera} perspective={perspective}>
-        <ClearRect x={0} y={0} width={W} height={H} deps={[screen]} />
+        <ScreenClear screen={screen} />
 
         {screen === "home" && <HomeScreen onNavigate={setScreen} onExit={onExit} />}
         {screen === "datebook" && <DateBookScreen onHome={goHome} />}
@@ -1035,4 +1085,14 @@ export function PalmMode({ onExit }: { onExit: () => void }) {
       </LCDScreen>
     </div>
   );
+}
+
+// Helper: clear entire framebuffer when screen changes
+function ScreenClear({ screen }: { screen: string }) {
+  const { engine, offsetX, offsetY } = useLCD();
+  useEffect(() => {
+    engine.fb.fillRect(offsetX, offsetY, W, H, 0);
+    engine.markDirty();
+  }, [engine, offsetX, offsetY, screen]);
+  return null;
 }
