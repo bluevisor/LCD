@@ -8,7 +8,7 @@ import {
   type ThemePresetName,
 } from "../../src";
 
-const font = new BitmapFont();
+const font = new BitmapFont("3x5");
 
 const W = 84;
 const H = 48;
@@ -132,7 +132,7 @@ function ListNav({ items, selected, onSelect, onConfirm, focusOrder }: {
   focusOrder: number;
 }) {
   const { engine, offsetX, offsetY } = useLCD();
-  const maxVisible = Math.floor(CONTENT_H / 9);
+  const maxVisible = Math.floor(CONTENT_H / 7);
   const scrollTop = Math.max(0, Math.min(selected - Math.floor(maxVisible / 2), items.length - maxVisible));
 
   const onUp = useCallback(() => {
@@ -166,11 +166,11 @@ function ListNav({ items, selected, onSelect, onConfirm, focusOrder }: {
     const visible = items.slice(scrollTop, scrollTop + maxVisible);
     visible.forEach((item, i) => {
       const idx = scrollTop + i;
-      const y = oy + 1 + i * 9;
+      const y = oy + 1 + i * 7;
       if (idx === selected) {
         font.drawText(fb, ">", ox + 1, y, { intensity: 1 });
       }
-      font.drawText(fb, item, ox + 8, y, { intensity: idx === selected ? 1 : 0.6 });
+      font.drawText(fb, item, ox + 6, y, { intensity: idx === selected ? 1 : 0.6 });
     });
 
     // scroll indicators
@@ -223,7 +223,7 @@ function IdleScreen({ onMenu, onNames, onExit }: {
     fb.fillRect(ox, oy, W, CONTENT_H, 0);
     const text = "NOKIA";
     const tw = font.measureText(text);
-    font.drawText(fb, text, ox + Math.floor((W - tw) / 2), oy + Math.floor((CONTENT_H - 7) / 2), { intensity: 1 });
+    font.drawText(fb, text, ox + Math.floor((W - tw) / 2), oy + Math.floor((CONTENT_H - 5) / 2), { intensity: 1 });
     engine.markDirty();
   }, [engine, offsetX, offsetY]);
 
@@ -344,7 +344,7 @@ function MessageViewScreen({ msgIndex, onBack }: {
     fb.fillRect(ox, oy, W, CONTENT_H, 0);
     const lines = INBOX_FULL[msgIndex].split("\n");
     lines.forEach((line, i) => {
-      font.drawText(fb, line, ox + 2, oy + 2 + i * 9, { intensity: 1 });
+      font.drawText(fb, line, ox + 2, oy + 2 + i * 7, { intensity: 1 });
     });
     engine.markDirty();
   }, [engine, offsetX, offsetY, msgIndex]);
@@ -411,7 +411,7 @@ function ProfilesScreen({ onBack }: { onBack: () => void }) {
   useCancel(onBack);
 
   const { engine, offsetX, offsetY } = useLCD();
-  const maxVisible = Math.floor(CONTENT_H / 9);
+  const maxVisible = Math.floor(CONTENT_H / 7);
   const scrollTop = Math.max(0, Math.min(selected - Math.floor(maxVisible / 2), PROFILES.length - maxVisible));
 
   const onUp = useCallback(() => {
@@ -445,10 +445,10 @@ function ProfilesScreen({ onBack }: { onBack: () => void }) {
     const visible = PROFILES.slice(scrollTop, scrollTop + maxVisible);
     visible.forEach((item, i) => {
       const idx = scrollTop + i;
-      const y = oy + 1 + i * 9;
+      const y = oy + 1 + i * 7;
       const marker = idx === active ? "*" : (idx === selected ? ">" : " ");
       font.drawText(fb, marker, ox + 1, y, { intensity: 1 });
-      font.drawText(fb, item, ox + 8, y, { intensity: idx === selected ? 1 : 0.6 });
+      font.drawText(fb, item, ox + 6, y, { intensity: idx === selected ? 1 : 0.6 });
     });
     engine.markDirty();
   }, [engine, offsetX, offsetY, selected, active, scrollTop, maxVisible]);
@@ -527,9 +527,9 @@ function SettingsScreen({ onBack, theme, onThemeChange, camera, onCameraChange, 
     <>
       <StatusBar />
       <OptionRow y={CONTENT_Y + 1} label="Theme" value={theme} options={themes} onChange={(v) => onThemeChange(v as ThemePresetName)} focusOrder={10} />
-      <OptionRow y={CONTENT_Y + 9} label="Cam" value={camera} options={CAMERAS} onChange={onCameraChange} focusOrder={20} />
-      <OptionRow y={CONTENT_Y + 17} label="Pix" value={String(pixelSize)} options={sizes} onChange={(v) => onPixelSizeChange(Number(v))} focusOrder={30} />
-      <OptionRow y={CONTENT_Y + 25} label="Prsp" value={perspective ? "ON" : "OFF"} options={["OFF", "ON"]} onChange={(v) => onPerspectiveChange(v === "ON")} focusOrder={40} />
+      <OptionRow y={CONTENT_Y + 8} label="Cam" value={camera} options={CAMERAS} onChange={onCameraChange} focusOrder={20} />
+      <OptionRow y={CONTENT_Y + 15} label="Pix" value={String(pixelSize)} options={sizes} onChange={(v) => onPixelSizeChange(Number(v))} focusOrder={30} />
+      <OptionRow y={CONTENT_Y + 22} label="Prsp" value={perspective ? "ON" : "OFF"} options={["OFF", "ON"]} onChange={(v) => onPerspectiveChange(v === "ON")} focusOrder={40} />
       <SoftKeys left="Edit" right="Back" />
     </>
   );
@@ -551,8 +551,8 @@ function GamesScreen({ onBack }: { onBack: () => void }) {
     const ox = offsetX;
     const oy = offsetY + CONTENT_Y;
     fb.fillRect(ox, oy, W, CONTENT_H, 0);
-    font.drawText(fb, "Snake", ox + 2, oy + 4, { intensity: 1 });
-    font.drawText(fb, "Coming soon", ox + 2, oy + 16, { intensity: 0.6 });
+    font.drawText(fb, "Snake", ox + 2, oy + 2, { intensity: 1 });
+    font.drawText(fb, "Coming soon", ox + 2, oy + 10, { intensity: 0.6 });
     engine.markDirty();
   }, [engine, offsetX, offsetY]);
 
@@ -712,7 +712,7 @@ function ClockScreen({ onBack }: { onBack: () => void }) {
     const oy = offsetY + CONTENT_Y;
     fb.fillRect(ox, oy, W, CONTENT_H, 0);
     const tw = font.measureText(time);
-    font.drawText(fb, time, ox + Math.floor((W - tw) / 2), oy + Math.floor((CONTENT_H - 7) / 2), { intensity: 1 });
+    font.drawText(fb, time, ox + Math.floor((W - tw) / 2), oy + Math.floor((CONTENT_H - 5) / 2), { intensity: 1 });
     engine.markDirty();
   }, [engine, offsetX, offsetY, time]);
 
@@ -776,8 +776,8 @@ function ContactViewScreen({ contactIndex, onBack }: {
     const ox = offsetX;
     const oy = offsetY + CONTENT_Y;
     fb.fillRect(ox, oy, W, CONTENT_H, 0);
-    font.drawText(fb, contact.name, ox + 2, oy + 4, { intensity: 1 });
-    font.drawText(fb, contact.phone, ox + 2, oy + 16, { intensity: 0.8 });
+    font.drawText(fb, contact.name, ox + 2, oy + 2, { intensity: 1 });
+    font.drawText(fb, contact.phone, ox + 2, oy + 10, { intensity: 0.8 });
     engine.markDirty();
   }, [engine, offsetX, offsetY, contact]);
 
