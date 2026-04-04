@@ -1,6 +1,7 @@
 import { Framebuffer } from "./framebuffer";
 import { DotRenderer, type RendererConfig } from "./renderer";
 import { HitTestManager } from "./hit-test";
+import { FocusManager } from "./focus";
 import type { LCDTheme } from "../themes/types";
 import type { HitRegion } from "./types";
 
@@ -11,22 +12,27 @@ export interface EngineConfig {
   renderer?: Partial<RendererConfig>;
 }
 
+export type KeyHandler = (e: KeyboardEvent) => void;
+
 export class LCDEngine {
   readonly fb: Framebuffer;
   readonly renderer: DotRenderer;
   readonly hitTest: HitTestManager;
+  readonly focus: FocusManager;
   theme: LCDTheme;
 
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
   private rafId: number | null = null;
   private running = false;
+  private keyHandlers: Set<KeyHandler> = new Set();
 
   constructor(config: EngineConfig) {
     this.fb = new Framebuffer(config.width, config.height);
     this.renderer = new DotRenderer(config.renderer);
     this.hitTest = new HitTestManager();
     this.hitTest.setPixelSize(this.renderer.pixelSize);
+    this.focus = new FocusManager();
     this.theme = config.theme;
   }
 
@@ -36,6 +42,8 @@ export class LCDEngine {
     const size = this.renderer.getCanvasSize(this.fb);
     canvas.width = size.width;
     canvas.height = size.height;
+    canvas.tabIndex = 0;
+    canvas.style.outline = "none";
     this.setupEvents(canvas);
     this.start();
   }
@@ -46,9 +54,29 @@ export class LCDEngine {
       this.canvas.removeEventListener("pointerdown", this.onPointerDown);
       this.canvas.removeEventListener("pointerup", this.onPointerUp);
       this.canvas.removeEventListener("pointermove", this.onPointerMove);
+      this.canvas.removeEventListener("keydown", this.onKeyDown);
     }
     this.canvas = null;
     this.ctx = null;
+  }
+
+  setPixelSize(size: number): void {
+    this.renderer.setPixelSize(size);
+    this.hitTest.setPixelSize(size);
+    if (this.canvas) {
+      const s = this.renderer.getCanvasSize(this.fb);
+      this.canvas.width = s.width;
+      this.canvas.height = s.height;
+    }
+    this.markDirty();
+  }
+
+  addKeyListener(handler: KeyHandler): void {
+    this.keyHandlers.add(handler);
+  }
+
+  removeKeyListener(handler: KeyHandler): void {
+    this.keyHandlers.delete(handler);
   }
 
   registerRegion(region: HitRegion): void {
@@ -90,7 +118,15 @@ export class LCDEngine {
     canvas.addEventListener("pointerdown", this.onPointerDown);
     canvas.addEventListener("pointerup", this.onPointerUp);
     canvas.addEventListener("pointermove", this.onPointerMove);
+    canvas.addEventListener("keydown", this.onKeyDown);
   }
+
+  private onKeyDown = (e: KeyboardEvent): void => {
+    if (this.focus.handleKey(e)) return;
+    for (const handler of this.keyHandlers) {
+      handler(e);
+    }
+  };
 
   private getEventLcdCoords(e: PointerEvent): { x: number; y: number } {
     const rect = this.canvas!.getBoundingClientRect();

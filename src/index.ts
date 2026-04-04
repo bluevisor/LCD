@@ -1,10 +1,12 @@
 // Engine
 export { LCDEngine } from "./engine/engine";
-export type { EngineConfig } from "./engine/engine";
+export type { EngineConfig, KeyHandler } from "./engine/engine";
 export { Framebuffer } from "./engine/framebuffer";
 export { DotRenderer } from "./engine/renderer";
 export type { RendererConfig } from "./engine/renderer";
 export { HitTestManager } from "./engine/hit-test";
+export { FocusManager } from "./engine/focus";
+export type { FocusableItem, CancelHandler } from "./engine/focus";
 export type { Rect, CameraTransform, CameraConfig, CameraPreset, HitRegion } from "./engine/types";
 export { cameraPresets } from "./engine/types";
 
@@ -50,6 +52,8 @@ export type { LCDTabsProps } from "./components/LCDTabs";
 export { LCDMenu } from "./components/LCDMenu";
 export type { LCDMenuProps } from "./components/LCDMenu";
 
-// Context (for advanced usage)
+// Context and hooks (for advanced usage)
 export { useLCD, LCDContext } from "./components/LCDContext";
 export type { LCDContextValue } from "./components/LCDContext";
+export { useFocus } from "./components/useFocus";
+export { useFocusIndicator } from "./components/useFocusIndicator";
