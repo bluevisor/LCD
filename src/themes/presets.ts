@@ -35,5 +35,12 @@ export const newton: LCDTheme = {
   shadow: "#0D0F0A",
 };
 
-export const themePresets = { green, amber, gray, blue, newton } as const;
+export const palm: LCDTheme = {
+  background: "#B0BFA0",
+  dotOff: "#A3B295",
+  dotOn: "#1C2416",
+  shadow: "#0E120B",
+};
+
+export const themePresets = { green, amber, gray, blue, newton, palm } as const;
 export type ThemePresetName = keyof typeof themePresets;

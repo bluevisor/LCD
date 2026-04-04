@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { NokiaMode } from "./modes/NokiaMode";
 import { NewtonMode } from "./modes/NewtonMode";
+import { PalmMode } from "./modes/PalmMode";
 
-type Mode = "picker" | "nokia" | "newton";
+type Mode = "picker" | "nokia" | "newton" | "palm";
 
 const MODES: { key: Mode; label: string; color: string }[] = [
   { key: "nokia", label: "Nokia Mode", color: "#7B8B2D" },
   { key: "newton", label: "Newton Mode", color: "#9BA88A" },
+  { key: "palm", label: "Palm Pilot", color: "#B0BFA0" },
 ];
 
 function ModePicker({ onSelect }: { onSelect: (mode: Mode) => void }) {
@@ -67,5 +69,6 @@ export default function App() {
 
   if (mode === "nokia") return <NokiaMode onExit={() => setMode("picker")} />;
   if (mode === "newton") return <NewtonMode onExit={() => setMode("picker")} />;
+  if (mode === "palm") return <PalmMode onExit={() => setMode("picker")} />;
   return <ModePicker onSelect={setMode} />;
 }
