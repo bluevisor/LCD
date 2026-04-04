@@ -740,7 +740,7 @@ function ExtrasScreen({
     const ox = offsetX;
     const oy = offsetY + CONTENT_Y;
     const rx = ox + LEFT_PANE_W + 4;
-    fb.fillRect(ox + LEFT_PANE_W + 1, oy, W - LEFT_PANE_W - 1, CONTENT_H, 0);
+    fb.fillRect(ox + LEFT_PANE_W + 1, oy, W - LEFT_PANE_W - 1, 10, 0);
     font.drawText(fb, "Preferences", rx, oy + 2, { intensity: 1 });
     for (let x = rx; x < ox + W - 4; x++) {
       fb.set(x, oy + 8, 0.4);
