@@ -752,10 +752,12 @@ function TetrisTitleScreen({ onStart, onBack }: {
     // Divider above menu
     for (let x = ox; x < ox + W; x++) fb.set(x, oy + 100, 0.5);
 
-    // Menu: "> Start" centered
-    const startText = "> Start";
-    const startW = font.measureText(startText);
-    font.drawText(fb, startText, ox + Math.floor((W - startW) / 2), oy + 108, { intensity: 1 });
+    // Menu: "Start" centered with > prefix
+    const label = "Start";
+    const lw = font.measureText(label);
+    const lx = ox + Math.floor((W - lw) / 2);
+    font.drawText(fb, ">", lx - 8, oy + 108, { intensity: 1 });
+    font.drawText(fb, label, lx, oy + 108, { intensity: 1 });
 
     // Copyright
     const copy = "c1989  Game Boy";
