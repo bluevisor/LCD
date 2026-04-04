@@ -12,7 +12,6 @@ import {
   BitmapFont,
   useLCD,
   useFocus,
-  type ThemePresetName,
 } from "../src";
 
 type Mode = "picker" | "nokia" | "nokia9210" | "newton" | "palm" | "blackberry" | "gameboy" | "tamagotchi" | "pager";
@@ -29,7 +28,6 @@ const MODES: { key: Mode; label: string; detail: string }[] = [
 ];
 
 const CAMERAS: string[] = ["straight", "isometric", "desk", "handheld"];
-const THEMES: ThemePresetName[] = ["green", "amber", "gray", "blue", "newton", "palm", "gameboy", "tamagotchi", "pager"];
 
 const font = new BitmapFont();
 
@@ -105,7 +103,7 @@ function PickerContent({ onSelect, selected, setSelected }: {
       }
     });
 
-    const footer = "-/+ size  ,/. angle  \\ persp";
+    const footer = ",/. angle  \\ persp";
     const fw = font.measureText(footer);
     font.drawText(fb, footer, ox + Math.floor((W - fw) / 2), oy + H - 9, { intensity: 0.3 });
 
@@ -115,15 +113,27 @@ function PickerContent({ onSelect, selected, setSelected }: {
   return null;
 }
 
-function ModePicker({ onSelect, selected, setSelected, theme, camera, pixelSize, perspective }: {
+function ModePicker({ onSelect, selected, setSelected, camera, perspective }: {
   onSelect: (mode: Mode) => void;
   selected: number;
   setSelected: (i: number) => void;
-  theme: ThemePresetName;
   camera: string;
-  pixelSize: number;
   perspective: boolean;
 }) {
+  const [pixelSize, setPixelSize] = useState(4);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const px = Math.max(2, Math.floor(Math.min(vw / W, vh / H)));
+      setPixelSize(px);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   return (
     <div style={{
       width: "100vw",
@@ -134,7 +144,7 @@ function ModePicker({ onSelect, selected, setSelected, theme, camera, pixelSize,
       background: "#111",
       overflow: "hidden",
     }}>
-      <LCDScreen width={W} height={H} pixelSize={pixelSize} theme={theme} camera={camera} perspective={perspective}>
+      <LCDScreen width={W} height={H} pixelSize={pixelSize} theme="green" camera={camera} perspective={perspective}>
         <PickerContent onSelect={onSelect} selected={selected} setSelected={setSelected} />
       </LCDScreen>
     </div>
@@ -144,20 +154,14 @@ function ModePicker({ onSelect, selected, setSelected, theme, camera, pixelSize,
 export default function App() {
   const [mode, setMode] = useState<Mode>("picker");
   const [pickerIdx, setPickerIdx] = useState(0);
-  const [theme, setTheme] = useState<ThemePresetName>("green");
   const [camera, setCamera] = useState("straight");
-  const [pixelSize, setPixelSize] = useState(4);
   const [perspective, setPerspective] = useState(false);
 
-  // Shared hotkeys active on picker screen
+  // Shared hotkeys active on picker screen (camera and perspective only)
   useEffect(() => {
     if (mode !== "picker") return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "-" || e.key === "_") {
-        setPixelSize(s => Math.max(2, s - 1));
-      } else if (e.key === "=" || e.key === "+") {
-        setPixelSize(s => Math.min(12, s + 1));
-      } else if (e.key === "," || e.key === "<") {
+      if (e.key === "," || e.key === "<") {
         setCamera(c => {
           const idx = CAMERAS.indexOf(c);
           return CAMERAS[(idx - 1 + CAMERAS.length) % CAMERAS.length];
@@ -169,16 +173,6 @@ export default function App() {
         });
       } else if (e.key === "\\") {
         setPerspective(p => !p);
-      } else if (e.key === "[") {
-        setTheme(t => {
-          const idx = THEMES.indexOf(t);
-          return THEMES[(idx - 1 + THEMES.length) % THEMES.length];
-        });
-      } else if (e.key === "]") {
-        setTheme(t => {
-          const idx = THEMES.indexOf(t);
-          return THEMES[(idx + 1) % THEMES.length];
-        });
       }
     };
     window.addEventListener("keydown", handler);
@@ -187,22 +181,20 @@ export default function App() {
 
   const exitTo = useCallback(() => setMode("picker"), []);
 
-  if (mode === "nokia") return <NokiaMode onExit={exitTo} pixelSize={pixelSize} setPixelSize={setPixelSize} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
-  if (mode === "newton") return <NewtonMode onExit={exitTo} pixelSize={pixelSize} setPixelSize={setPixelSize} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
-  if (mode === "palm") return <PalmMode onExit={exitTo} pixelSize={pixelSize} setPixelSize={setPixelSize} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
-  if (mode === "nokia9210") return <Nokia9210Mode onExit={exitTo} pixelSize={pixelSize} setPixelSize={setPixelSize} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
-  if (mode === "blackberry") return <BlackBerryMode onExit={exitTo} pixelSize={pixelSize} setPixelSize={setPixelSize} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
-  if (mode === "gameboy") return <GameBoyMode onExit={exitTo} pixelSize={pixelSize} setPixelSize={setPixelSize} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
-  if (mode === "tamagotchi") return <TamagotchiMode onExit={exitTo} pixelSize={pixelSize} setPixelSize={setPixelSize} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
-  if (mode === "pager") return <PagerMode onExit={exitTo} pixelSize={pixelSize} setPixelSize={setPixelSize} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
+  if (mode === "nokia") return <NokiaMode onExit={exitTo} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
+  if (mode === "newton") return <NewtonMode onExit={exitTo} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
+  if (mode === "palm") return <PalmMode onExit={exitTo} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
+  if (mode === "nokia9210") return <Nokia9210Mode onExit={exitTo} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
+  if (mode === "blackberry") return <BlackBerryMode onExit={exitTo} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
+  if (mode === "gameboy") return <GameBoyMode onExit={exitTo} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
+  if (mode === "tamagotchi") return <TamagotchiMode onExit={exitTo} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
+  if (mode === "pager") return <PagerMode onExit={exitTo} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
   return (
     <ModePicker
       onSelect={setMode}
       selected={pickerIdx}
       setSelected={setPickerIdx}
-      theme={theme}
       camera={camera}
-      pixelSize={pixelSize}
       perspective={perspective}
     />
   );

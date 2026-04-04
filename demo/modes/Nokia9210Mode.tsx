@@ -791,15 +791,14 @@ function ExtrasScreen({
 
 /* ── Main Export ──────────────────────────────────────────── */
 
-export function Nokia9210Mode({ onExit, pixelSize, setPixelSize, camera, setCamera, perspective, setPerspective }: {
+export function Nokia9210Mode({ onExit, camera, setCamera, perspective, setPerspective }: {
   onExit: () => void;
-  pixelSize: number;
-  setPixelSize: (fn: (s: number) => number) => void;
   camera: string;
   setCamera: (fn: (s: string) => string) => void;
   perspective: boolean;
   setPerspective: (fn: (s: boolean) => boolean) => void;
 }) {
+  const [pixelSize, setPixelSize] = useState(3);
   const [screen, setScreen] = useState<Screen>("desktop");
   const [theme, setTheme] = useState<ThemePresetName>("blue");
 

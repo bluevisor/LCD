@@ -1295,15 +1295,14 @@ function PrefsScreen({ onExtras, theme, onThemeChange, camera, onCameraChange, p
 
 // --- Main Newton Mode ---
 
-export function NewtonMode({ onExit, pixelSize, setPixelSize, camera, setCamera, perspective, setPerspective }: {
+export function NewtonMode({ onExit, camera, setCamera, perspective, setPerspective }: {
   onExit: () => void;
-  pixelSize: number;
-  setPixelSize: (fn: (s: number) => number) => void;
   camera: string;
   setCamera: (fn: (s: string) => string) => void;
   perspective: boolean;
   setPerspective: (fn: (s: boolean) => boolean) => void;
 }) {
+  const [pixelSize, setPixelSize] = useState(3);
   const [screen, setScreen] = useState<Screen>("extras");
   const [theme, setTheme] = useState<string>("newton");
 

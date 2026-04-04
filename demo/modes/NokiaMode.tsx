@@ -791,15 +791,14 @@ function ContactViewScreen({ contactIndex, onBack }: {
 
 /* ── Main Export ──────────────────────────────────────────── */
 
-export function NokiaMode({ onExit, pixelSize, setPixelSize, camera, setCamera, perspective, setPerspective }: {
+export function NokiaMode({ onExit, camera, setCamera, perspective, setPerspective }: {
   onExit: () => void;
-  pixelSize: number;
-  setPixelSize: (fn: (s: number) => number) => void;
   camera: string;
   setCamera: (fn: (s: string) => string) => void;
   perspective: boolean;
   setPerspective: (fn: (s: boolean) => boolean) => void;
 }) {
+  const [pixelSize, setPixelSize] = useState(6);
   const [screen, setScreen] = useState<Screen>("idle");
   const [theme, setTheme] = useState<ThemePresetName>("green");
 

@@ -1194,15 +1194,14 @@ function SettingsScreen({ onBack, theme, onThemeChange, camera, onCameraChange, 
 
 /* ── Main Export ──────────────────────────────────────────── */
 
-export function GameBoyMode({ onExit, pixelSize, setPixelSize, camera, setCamera, perspective, setPerspective }: {
+export function GameBoyMode({ onExit, camera, setCamera, perspective, setPerspective }: {
   onExit: () => void;
-  pixelSize: number;
-  setPixelSize: (fn: (s: number) => number) => void;
   camera: string;
   setCamera: (fn: (s: string) => string) => void;
   perspective: boolean;
   setPerspective: (fn: (s: boolean) => boolean) => void;
 }) {
+  const [pixelSize, setPixelSize] = useState(4);
   const [screen, setScreen] = useState<Screen>("boot");
   const [theme, setTheme] = useState<ThemePresetName>("gameboy");
 
