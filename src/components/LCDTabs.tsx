@@ -1,5 +1,7 @@
-import { useEffect, useId } from "react";
+import { useEffect, useId, useCallback } from "react";
 import { useLCD } from "./LCDContext";
+import { useFocus } from "./useFocus";
+import { useFocusIndicator } from "./useFocusIndicator";
 import { BitmapFont } from "../fonts/bitmap-font";
 
 const font = new BitmapFont();
@@ -11,6 +13,7 @@ export interface LCDTabsProps {
   activeIndex: number;
   onChange?: (index: number) => void;
   gap?: number;
+  focusOrder?: number;
 }
 
 export function LCDTabs({
@@ -20,6 +23,7 @@ export function LCDTabs({
   activeIndex,
   onChange,
   gap = 1,
+  focusOrder,
 }: LCDTabsProps) {
   const { engine, offsetX, offsetY } = useLCD();
   const baseId = useId();
@@ -41,22 +45,37 @@ export function LCDTabs({
     return { x: tx, y: absY, w: tabW, h: tabH, label };
   });
 
+  const totalW =
+    tabRects.length > 0
+      ? tabRects[tabRects.length - 1].x + tabRects[tabRects.length - 1].w - absX
+      : 0;
+
+  const onLeft = useCallback(() => {
+    onChange?.(Math.max(0, activeIndex - 1));
+  }, [onChange, activeIndex]);
+
+  const onRight = useCallback(() => {
+    onChange?.(Math.min(tabs.length - 1, activeIndex + 1));
+  }, [onChange, activeIndex, tabs.length]);
+
+  const { focused } = useFocus({
+    rect: { x: absX, y: absY, width: totalW, height: tabH },
+    order: focusOrder ?? 0,
+    enabled: focusOrder != null,
+    onLeft,
+    onRight,
+  });
+
+  useFocusIndicator(focused, absX, absY, totalW, tabH);
+
   useEffect(() => {
     const fb = engine.fb;
-    const totalW =
-      tabRects.length > 0
-        ? tabRects[tabRects.length - 1].x +
-          tabRects[tabRects.length - 1].w -
-          absX
-        : 0;
     fb.fillRect(absX, absY, totalW, tabH, 0);
 
     tabRects.forEach((tr, i) => {
       if (i === activeIndex) {
         fb.fillRect(tr.x, tr.y, tr.w, tr.h, 1);
-        font.drawText(fb, tr.label, tr.x + padX, tr.y + padY, {
-          intensity: 0,
-        });
+        font.drawText(fb, tr.label, tr.x + padX, tr.y + padY, { intensity: 0 });
       } else {
         for (let j = 0; j < tr.w; j++) {
           fb.set(tr.x + j, tr.y, 1);
@@ -66,13 +85,11 @@ export function LCDTabs({
           fb.set(tr.x, tr.y + j, 1);
           fb.set(tr.x + tr.w - 1, tr.y + j, 1);
         }
-        font.drawText(fb, tr.label, tr.x + padX, tr.y + padY, {
-          intensity: 1,
-        });
+        font.drawText(fb, tr.label, tr.x + padX, tr.y + padY, { intensity: 1 });
       }
     });
     engine.markDirty();
-  }, [engine, absX, absY, tabs, activeIndex, tabRects, tabH, padX, padY]);
+  }, [engine, absX, absY, tabs, activeIndex, tabRects, tabH, totalW, padX, padY]);
 
   useEffect(() => {
     tabRects.forEach((tr, i) => {

@@ -1,5 +1,7 @@
-import { useEffect, useId } from "react";
+import { useEffect, useId, useCallback } from "react";
 import { useLCD } from "./LCDContext";
+import { useFocus } from "./useFocus";
+import { useFocusIndicator } from "./useFocusIndicator";
 
 export interface LCDSliderProps {
   x: number;
@@ -8,6 +10,8 @@ export interface LCDSliderProps {
   height?: number;
   value: number;
   onChange?: (value: number) => void;
+  step?: number;
+  focusOrder?: number;
 }
 
 export function LCDSlider({
@@ -17,11 +21,26 @@ export function LCDSlider({
   height = 5,
   value,
   onChange,
+  step = 0.05,
+  focusOrder,
 }: LCDSliderProps) {
   const { engine, offsetX, offsetY } = useLCD();
   const id = useId();
   const absX = x + offsetX;
   const absY = y + offsetY;
+
+  const onLeft = useCallback(() => onChange?.(Math.max(0, value - step)), [onChange, value, step]);
+  const onRight = useCallback(() => onChange?.(Math.min(1, value + step)), [onChange, value, step]);
+
+  const { focused } = useFocus({
+    rect: { x: absX, y: absY, width, height },
+    order: focusOrder ?? 0,
+    enabled: focusOrder != null,
+    onLeft,
+    onRight,
+  });
+
+  useFocusIndicator(focused, absX, absY, width, height);
 
   useEffect(() => {
     const fb = engine.fb;

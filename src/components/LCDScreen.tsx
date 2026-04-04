@@ -3,7 +3,7 @@ import { LCDEngine } from "../engine/engine";
 import { LCDContext, type LCDContextValue } from "./LCDContext";
 import { themePresets, type ThemePresetName } from "../themes/presets";
 import type { LCDTheme } from "../themes/types";
-import { cameraPresets, type CameraConfig } from "../engine/types";
+import { cameraPresets, type CameraConfig, type CameraTransform } from "../engine/types";
 
 export interface LCDScreenProps {
   width: number;
@@ -11,6 +11,8 @@ export interface LCDScreenProps {
   pixelSize?: number;
   theme?: ThemePresetName | LCDTheme;
   camera?: CameraConfig;
+  /** Enable CSS perspective (default false) */
+  perspective?: boolean;
   children?: ReactNode;
 }
 
@@ -20,16 +22,10 @@ function resolveTheme(theme: ThemePresetName | LCDTheme | undefined): LCDTheme {
   return theme;
 }
 
-function getCameraStyle(camera?: CameraConfig): React.CSSProperties {
-  if (!camera) return {};
-  const t = typeof camera === "string" ? cameraPresets[camera] : camera;
-  if (!t) return {};
-  const transforms: string[] = [];
-  if (t.rotate) transforms.push(`rotate(${t.rotate}deg)`);
-  if (t.skewX) transforms.push(`skewX(${t.skewX}deg)`);
-  if (t.skewY) transforms.push(`skewY(${t.skewY}deg)`);
-  if (t.scale && t.scale !== 1) transforms.push(`scale(${t.scale})`);
-  return transforms.length ? { transform: transforms.join(" ") } : {};
+function resolveCamera(camera?: CameraConfig): CameraTransform | null {
+  if (!camera) return null;
+  if (typeof camera === "string") return cameraPresets[camera] ?? null;
+  return camera;
 }
 
 export function LCDScreen({
@@ -38,6 +34,7 @@ export function LCDScreen({
   pixelSize = 6,
   theme,
   camera,
+  perspective = false,
   children,
 }: LCDScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -51,7 +48,7 @@ export function LCDScreen({
         theme: resolvedTheme,
         renderer: { pixelSize },
       }),
-    [width, height, pixelSize]
+    [width, height]
   );
 
   useEffect(() => {
@@ -60,9 +57,14 @@ export function LCDScreen({
   }, [engine, resolvedTheme]);
 
   useEffect(() => {
+    engine.setPixelSize(pixelSize);
+  }, [engine, pixelSize]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     engine.attach(canvas);
+    canvas.focus();
     return () => engine.detach();
   }, [engine]);
 
@@ -71,27 +73,52 @@ export function LCDScreen({
     [engine]
   );
 
-  const cameraStyle = getCameraStyle(camera);
+  const t = resolveCamera(camera);
+  const transforms: string[] = [];
+  if (t) {
+    if (perspective) {
+      // Use 3D rotations so CSS perspective has visible effect
+      if (t.rotate) transforms.push(`rotateZ(${t.rotate}deg)`);
+      if (t.skewX) transforms.push(`rotateY(${t.skewX}deg)`);
+      if (t.skewY) transforms.push(`rotateX(${-t.skewY}deg)`);
+    } else {
+      if (t.rotate) transforms.push(`rotate(${t.rotate}deg)`);
+      if (t.skewX) transforms.push(`skewX(${t.skewX}deg)`);
+      if (t.skewY) transforms.push(`skewY(${t.skewY}deg)`);
+    }
+    if (t.scale && t.scale !== 1) transforms.push(`scale(${t.scale})`);
+  }
+
   const canvasW = width * pixelSize;
   const canvasH = height * pixelSize;
 
   return (
     <div
-      style={{
+      style={perspective ? {
+        perspective: "800px",
         display: "inline-block",
-        ...cameraStyle,
+      } : {
+        display: "inline-block",
       }}
     >
-      <canvas
-        ref={canvasRef}
+      <div
         style={{
-          width: canvasW,
-          height: canvasH,
-          display: "block",
-          imageRendering: "pixelated",
+          display: "inline-block",
+          ...(transforms.length ? { transform: transforms.join(" ") } : {}),
+          ...(perspective ? { transformStyle: "preserve-3d" as const } : {}),
         }}
-      />
-      <LCDContext.Provider value={ctxValue}>{children}</LCDContext.Provider>
+      >
+        <canvas
+          ref={canvasRef}
+          style={{
+            width: canvasW,
+            height: canvasH,
+            display: "block",
+            imageRendering: "pixelated",
+          }}
+        />
+        <LCDContext.Provider value={ctxValue}>{children}</LCDContext.Provider>
+      </div>
     </div>
   );
 }

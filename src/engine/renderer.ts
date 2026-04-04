@@ -46,7 +46,7 @@ export class DotRenderer {
     const { pixelSize, dotFill, shadowOffset, shadowBlur } = this.config;
     const dotSize = pixelSize * dotFill;
     const offset = (pixelSize - dotSize) / 2;
-    const radius = dotSize * 0.18;
+    const radius = dotSize * 0.05;
 
     const canvasW = fb.width * pixelSize;
     const canvasH = fb.height * pixelSize;
@@ -100,5 +100,9 @@ export class DotRenderer {
 
   get pixelSize(): number {
     return this.config.pixelSize;
+  }
+
+  setPixelSize(size: number): void {
+    this.config.pixelSize = size;
   }
 }
