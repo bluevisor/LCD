@@ -2,13 +2,17 @@ import { useState, useEffect, useCallback } from "react";
 import { NokiaMode } from "./modes/NokiaMode";
 import { NewtonMode } from "./modes/NewtonMode";
 import { PalmMode } from "./modes/PalmMode";
+import { Nokia9210Mode } from "./modes/Nokia9210Mode";
+import { BlackBerryMode } from "./modes/BlackBerryMode";
 
-type Mode = "picker" | "nokia" | "newton" | "palm";
+type Mode = "picker" | "nokia" | "newton" | "palm" | "nokia9210" | "blackberry";
 
 const MODES: { key: Mode; label: string; color: string }[] = [
   { key: "nokia", label: "Nokia 6110", color: "#7B8B2D" },
-  { key: "newton", label: "Newton Mode", color: "#9BA88A" },
+  { key: "nokia9210", label: "Nokia 9210", color: "#4A6A8A" },
+  { key: "newton", label: "Newton", color: "#9BA88A" },
   { key: "palm", label: "Palm Pilot", color: "#B0BFA0" },
+  { key: "blackberry", label: "BlackBerry", color: "#6B8E6B" },
 ];
 
 function ModePicker({ onSelect }: { onSelect: (mode: Mode) => void }) {
@@ -70,5 +74,7 @@ export default function App() {
   if (mode === "nokia") return <NokiaMode onExit={() => setMode("picker")} />;
   if (mode === "newton") return <NewtonMode onExit={() => setMode("picker")} />;
   if (mode === "palm") return <PalmMode onExit={() => setMode("picker")} />;
+  if (mode === "nokia9210") return <Nokia9210Mode onExit={() => setMode("picker")} />;
+  if (mode === "blackberry") return <BlackBerryMode onExit={() => setMode("picker")} />;
   return <ModePicker onSelect={setMode} />;
 }
