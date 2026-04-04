@@ -781,12 +781,12 @@ export function NewtonMode({ onExit }: { onExit: () => void }) {
       } else if (e.key === "," || e.key === "<") {
         setCamera((c) => {
           const idx = CAMERAS.indexOf(c);
-          return CAMERAS[(idx + 1) % CAMERAS.length];
+          return CAMERAS[(idx - 1 + CAMERAS.length) % CAMERAS.length];
         });
       } else if (e.key === "." || e.key === ">") {
         setCamera((c) => {
           const idx = CAMERAS.indexOf(c);
-          return CAMERAS[(idx - 1 + CAMERAS.length) % CAMERAS.length];
+          return CAMERAS[(idx + 1) % CAMERAS.length];
         });
       } else if (e.key === "\\") {
         setPerspective((p) => !p);

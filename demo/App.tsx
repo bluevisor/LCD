@@ -1,10 +1,32 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { NokiaMode } from "./modes/NokiaMode";
 import { NewtonMode } from "./modes/NewtonMode";
 
 type Mode = "picker" | "nokia" | "newton";
 
+const MODES: { key: Mode; label: string; color: string }[] = [
+  { key: "nokia", label: "Nokia Mode", color: "#7B8B2D" },
+  { key: "newton", label: "Newton Mode", color: "#9BA88A" },
+];
+
 function ModePicker({ onSelect }: { onSelect: (mode: Mode) => void }) {
+  const [selected, setSelected] = useState(0);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        setSelected((s) => (s > 0 ? s - 1 : MODES.length - 1));
+      } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        setSelected((s) => (s < MODES.length - 1 ? s + 1 : 0));
+      } else if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onSelect(MODES[selected].key);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selected, onSelect]);
+
   return (
     <div style={{
       width: "100vw",
@@ -17,36 +39,25 @@ function ModePicker({ onSelect }: { onSelect: (mode: Mode) => void }) {
       fontFamily: "monospace",
       color: "#888",
     }}>
-      <button
-        onClick={() => onSelect("nokia")}
-        style={{
-          padding: "20px 32px",
-          background: "#222",
-          color: "#7B8B2D",
-          border: "2px solid #7B8B2D",
-          borderRadius: 8,
-          fontSize: 18,
-          fontFamily: "monospace",
-          cursor: "pointer",
-        }}
-      >
-        Nokia Mode
-      </button>
-      <button
-        onClick={() => onSelect("newton")}
-        style={{
-          padding: "20px 32px",
-          background: "#222",
-          color: "#9BA88A",
-          border: "2px solid #9BA88A",
-          borderRadius: 8,
-          fontSize: 18,
-          fontFamily: "monospace",
-          cursor: "pointer",
-        }}
-      >
-        Newton Mode
-      </button>
+      {MODES.map((m, i) => (
+        <button
+          key={m.key}
+          onClick={() => onSelect(m.key)}
+          style={{
+            padding: "20px 32px",
+            background: i === selected ? m.color : "#222",
+            color: i === selected ? "#111" : m.color,
+            border: `2px solid ${m.color}`,
+            borderRadius: 8,
+            fontSize: 18,
+            fontFamily: "monospace",
+            cursor: "pointer",
+            outline: "none",
+          }}
+        >
+          {m.label}
+        </button>
+      ))}
     </div>
   );
 }

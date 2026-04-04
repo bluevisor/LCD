@@ -512,14 +512,14 @@ export function NokiaMode({ onExit }: { onExit: () => void }) {
         setPixelSize((s) => Math.max(2, s - 1));
       } else if (e.key === "=" || e.key === "+") {
         setPixelSize((s) => Math.min(8, s + 1));
-      } else if (e.key === "." || e.key === ">") {
+      } else if (e.key === "," || e.key === "<") {
         setCamera((c) => {
           const idx = cameras.indexOf(c);
           return cameras[(idx - 1 + cameras.length) % cameras.length];
         });
       } else if (e.key === "\\") {
         setPerspective((p) => !p);
-      } else if (e.key === "," || e.key === "<") {
+      } else if (e.key === "." || e.key === ">") {
         setCamera((c) => {
           const idx = cameras.indexOf(c);
           return cameras[(idx + 1) % cameras.length];
