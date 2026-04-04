@@ -4,11 +4,13 @@ import type { Framebuffer } from "./framebuffer";
 export interface RendererConfig {
   pixelSize: number;
   dotFill: number;
+  shadowOffset: number;
 }
 
 const DEFAULT_CONFIG: RendererConfig = {
   pixelSize: 6,
   dotFill: 0.8,
+  shadowOffset: 1,
 };
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -78,7 +80,43 @@ export class DotRenderer {
       pixels[i + 3] = 255;
     }
 
-    // Draw dots
+    const { shadowOffset } = this.config;
+    const shadowRgb = hexToRgb(theme.shadow);
+
+    // Draw shadows first, then dots on top
+    for (let y = 0; y < fb.height; y++) {
+      for (let x = 0; x < fb.width; x++) {
+        const intensity = fb.get(x, y);
+        if (intensity <= 0.05) continue;
+
+        const px0 = x * pixelSize + offset;
+        const py0 = y * pixelSize + offset;
+
+        // Shadow (offset, alpha-blended with background)
+        const alpha = intensity * 0.5;
+        const sr = Math.round(bgRgb[0] + (shadowRgb[0] - bgRgb[0]) * alpha);
+        const sg = Math.round(bgRgb[1] + (shadowRgb[1] - bgRgb[1]) * alpha);
+        const sb = Math.round(bgRgb[2] + (shadowRgb[2] - bgRgb[2]) * alpha);
+        const sx0 = px0 + shadowOffset;
+        const sy0 = py0 + shadowOffset;
+
+        for (let dy = 0; dy < dotSize; dy++) {
+          const ry = sy0 + dy;
+          if (ry >= canvasH) continue;
+          const rowStart = ry * canvasW;
+          for (let dx = 0; dx < dotSize; dx++) {
+            const rx = sx0 + dx;
+            if (rx >= canvasW) continue;
+            const idx = (rowStart + rx) * 4;
+            pixels[idx] = sr;
+            pixels[idx + 1] = sg;
+            pixels[idx + 2] = sb;
+          }
+        }
+      }
+    }
+
+    // Draw dots on top of shadows
     for (let y = 0; y < fb.height; y++) {
       for (let x = 0; x < fb.width; x++) {
         const intensity = fb.get(x, y);
