@@ -27,7 +27,7 @@ const MODES: { key: Mode; label: string; detail: string }[] = [
 const font = new BitmapFont();
 
 const W = 200;
-const H = 140;
+const H = 110;
 
 function useCancel(onBack: () => void) {
   const { engine } = useLCD();
@@ -56,7 +56,7 @@ function PickerContent({ onSelect }: { onSelect: (mode: Mode) => void }) {
   }, [selected, onSelect]);
 
   useFocus({
-    rect: { x: offsetX, y: offsetY + 22, width: W, height: MODES.length * 18 },
+    rect: { x: offsetX, y: offsetY + 22, width: W, height: MODES.length * 12 },
     order: 10,
     onUp,
     onDown,
@@ -84,18 +84,20 @@ function PickerContent({ onSelect }: { onSelect: (mode: Mode) => void }) {
 
     // Device list
     const listY = oy + 26;
-    const itemH = 18;
+    const itemH = 12;
 
     MODES.forEach((m, i) => {
       const y = listY + i * itemH;
 
       if (i === selected) {
-        fb.fillRect(ox + 2, y - 1, W - 4, itemH - 2, 1);
+        fb.fillRect(ox + 2, y, W - 4, itemH - 3, 1);
         font.drawText(fb, m.label, ox + 6, y + 1, { intensity: 0 });
-        font.drawText(fb, m.detail, ox + 6, y + 9, { intensity: 0 });
+        const dw = font.measureText(m.detail);
+        font.drawText(fb, m.detail, ox + W - 6 - dw, y + 1, { intensity: 0 });
       } else {
         font.drawText(fb, m.label, ox + 6, y + 1, { intensity: 1 });
-        font.drawText(fb, m.detail, ox + 6, y + 9, { intensity: 0.4 });
+        const dw = font.measureText(m.detail);
+        font.drawText(fb, m.detail, ox + W - 6 - dw, y + 1, { intensity: 0.4 });
       }
 
       // Divider between items
