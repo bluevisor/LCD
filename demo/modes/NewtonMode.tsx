@@ -3,7 +3,6 @@ import {
   LCDScreen,
   LCDText,
   LCDPanel,
-  LCDDivider,
   LCDIcon,
   BitmapFont,
   useLCD,
@@ -15,10 +14,10 @@ const font = new BitmapFont();
 
 const W = 240;
 const H = 320;
-const TITLE_H = 14;
-const BOTTOM_H = 16;
-const CONTENT_Y = TITLE_H + 1;
-const CONTENT_H = H - TITLE_H - 1 - BOTTOM_H - 1;
+const TITLE_H = 16;
+const BOTTOM_H = 20;
+const CONTENT_Y = TITLE_H + 2; // 2px thick divider
+const CONTENT_H = H - TITLE_H - 2 - BOTTOM_H - 2;
 
 const CAMERAS: string[] = ["straight", "isometric", "desk", "handheld"];
 
@@ -43,57 +42,175 @@ function ClearRect({ x, y, width, height, deps }: {
   return null;
 }
 
+// --- Thick Divider (2px) ---
+
+function ThickDivider({ y }: { y: number }) {
+  const { engine, offsetX, offsetY } = useLCD();
+  useEffect(() => {
+    const fb = engine.fb;
+    const oy = offsetY + y;
+    for (let x = offsetX; x < offsetX + W; x++) {
+      fb.set(x, oy, 1);
+      fb.set(x, oy + 1, 1);
+    }
+    engine.markDirty();
+  }, [engine, offsetX, offsetY, y]);
+  return null;
+}
+
+// --- Newton Title Bar (16px tall) ---
+
 function TitleBar({ title }: { title: string }) {
   const titleW = font.measureText(title);
   const titleX = Math.floor((W - titleW) / 2);
+  const { engine, offsetX, offsetY } = useLCD();
+
+  useEffect(() => {
+    const fb = engine.fb;
+    const ox = offsetX;
+    const oy = offsetY;
+
+    // Close/routing box on left (small 5x5 bordered square)
+    const boxX = ox + 4;
+    const boxY = oy + 5;
+    for (let i = 0; i < 6; i++) {
+      fb.set(boxX + i, boxY, 1);
+      fb.set(boxX + i, boxY + 5, 1);
+    }
+    for (let i = 1; i < 5; i++) {
+      fb.set(boxX, boxY + i, 1);
+      fb.set(boxX + 5, boxY + i, 1);
+    }
+
+    // Action diamond on right
+    const dx = ox + W - 10;
+    const dy = oy + 8;
+    fb.set(dx, dy, 1);
+    fb.set(dx - 1, dy - 1, 1);
+    fb.set(dx + 1, dy - 1, 1);
+    fb.set(dx - 1, dy + 1, 1);
+    fb.set(dx + 1, dy + 1, 1);
+    fb.set(dx - 2, dy, 1);
+    fb.set(dx + 2, dy, 1);
+    fb.set(dx, dy - 2, 1);
+    fb.set(dx, dy + 2, 1);
+
+    engine.markDirty();
+  }, [engine, offsetX, offsetY]);
+
   return (
     <>
       <LCDPanel x={0} y={0} width={W} height={TITLE_H} border={false}>
-        <LCDText x={titleX} y={3}>{title}</LCDText>
+        <LCDText x={titleX} y={4}>{title}</LCDText>
       </LCDPanel>
-      <LCDDivider x={0} y={TITLE_H} length={W} />
+      <ThickDivider y={TITLE_H} />
     </>
   );
 }
 
-// --- Bottom Bar ---
+// --- Newton Bottom Bar (20px tall, 4 labeled sections) ---
+
+const BOTTOM_LABELS = ["Assist", "Undo", "Find", "Extras"];
+const BOTTOM_SYMBOLS = ["\x07", "\x08", "\x09", "\x0a"]; // placeholders, we draw custom
 
 function BottomBar({ onExtras }: { onExtras: () => void }) {
   const barY = H - BOTTOM_H;
-  const iconNames = ["star", "undo_arrow", "magnifier", "grid"];
-  const spacing = W / 4;
+  const divY = barY - 2;
+  const sectionW = Math.floor(W / 4);
+  const { engine, offsetX, offsetY } = useLCD();
+
+  useEffect(() => {
+    const fb = engine.fb;
+    const ox = offsetX;
+    const oy = offsetY;
+    const by = barY + oy;
+
+    // Clear bar area
+    fb.fillRect(ox, by, W, BOTTOM_H, 0);
+
+    // Vertical separators between sections
+    for (let i = 1; i < 4; i++) {
+      const sx = ox + i * sectionW;
+      for (let y = by + 2; y < by + BOTTOM_H - 2; y++) {
+        fb.set(sx, y, 0.6);
+      }
+    }
+
+    // Draw symbols and labels for each section
+    BOTTOM_LABELS.forEach((label, i) => {
+      const cx = ox + i * sectionW + Math.floor(sectionW / 2);
+
+      // Draw small symbol above label
+      const sy = by + 2;
+      if (i === 0) {
+        // Star for Assist
+        fb.set(cx, sy, 1);
+        fb.set(cx - 1, sy + 1, 1);
+        fb.set(cx + 1, sy + 1, 1);
+        fb.set(cx - 2, sy, 1);
+        fb.set(cx + 2, sy, 1);
+        fb.set(cx - 1, sy - 1, 1);
+        fb.set(cx + 1, sy - 1, 1);
+      } else if (i === 1) {
+        // Curved arrow for Undo
+        fb.set(cx - 2, sy, 1);
+        fb.set(cx - 1, sy - 1, 1);
+        fb.set(cx, sy - 1, 1);
+        fb.set(cx + 1, sy, 1);
+        fb.set(cx, sy + 1, 1);
+        fb.set(cx - 1, sy + 1, 1);
+        fb.set(cx - 3, sy + 1, 1);
+      } else if (i === 2) {
+        // Magnifier for Find
+        fb.set(cx - 1, sy - 1, 1);
+        fb.set(cx, sy - 1, 1);
+        fb.set(cx - 2, sy, 1);
+        fb.set(cx + 1, sy, 1);
+        fb.set(cx - 1, sy + 1, 1);
+        fb.set(cx, sy + 1, 1);
+        fb.set(cx + 1, sy + 2, 1);
+        fb.set(cx + 2, sy + 3, 1);
+      } else {
+        // Grid for Extras/Overview
+        for (let gx = -2; gx <= 2; gx += 2) {
+          for (let gy = -1; gy <= 1; gy += 2) {
+            fb.set(cx + gx, sy + gy, 1);
+          }
+        }
+      }
+
+      // Label text centered below symbol
+      const lw = font.measureText(label);
+      const lx = cx - Math.floor(lw / 2);
+      font.drawText(fb, label, lx, by + 10, { intensity: 0.9 });
+    });
+
+    engine.markDirty();
+  }, [engine, offsetX, offsetY, barY, sectionW]);
 
   return (
     <>
-      <LCDDivider x={0} y={barY} length={W} />
-      {iconNames.map((name, i) => {
-        const iconX = Math.floor(spacing * i + spacing / 2 - 4);
-        const iconY = barY + 4;
-        return (
-          <BottomBarIcon
-            key={name}
-            x={iconX}
-            y={iconY}
-            name={name}
-            order={900 + i}
-            onActivate={name === "grid" ? onExtras : undefined}
-          />
-        );
-      })}
+      <ThickDivider y={barY - 2} />
+      <BottomBarHitTarget sectionIndex={3} sectionW={sectionW} barY={barY} onActivate={onExtras} />
     </>
   );
 }
 
-function BottomBarIcon({ x, y, name, order, onActivate }: {
-  x: number; y: number; name: string; order: number; onActivate?: () => void;
+function BottomBarHitTarget({ sectionIndex, sectionW, barY, onActivate }: {
+  sectionIndex: number; sectionW: number; barY: number; onActivate: () => void;
 }) {
   const { offsetX, offsetY } = useLCD();
   useFocus({
-    rect: { x: x + offsetX, y: y + offsetY, width: 8, height: 8 },
-    order,
+    rect: {
+      x: offsetX + sectionIndex * sectionW,
+      y: offsetY + barY,
+      width: sectionW,
+      height: BOTTOM_H,
+    },
+    order: 900,
     onActivate,
   });
-  return <LCDIcon x={x} y={y} name={name} />;
+  return null;
 }
 
 // --- Extras Screen ---
@@ -112,13 +229,13 @@ const EXTRAS_ICONS: ExtrasIcon[] = [
   { name: "Prefs", icon: "prefs", screen: "prefs" },
 ];
 
-const GRID_COLS = 4;
+const GRID_COLS = 3;
 const ICON_SCALE = 2;
-const ICON_PX = 8 * ICON_SCALE; // 16
-const CELL_W = 50;
-const CELL_H = 30;
+const ICON_PX = 8 * ICON_SCALE; // 16x16
+const CELL_W = 70;
+const CELL_H = 40;
 const GRID_START_X = Math.floor((W - GRID_COLS * CELL_W) / 2);
-const GRID_START_Y = CONTENT_Y + 20;
+const GRID_START_Y = CONTENT_Y + 28;
 
 function ExtrasScreen({ onNavigate, onExit }: {
   onNavigate: (s: Screen) => void;
@@ -173,14 +290,19 @@ function ExtrasScreen({ onNavigate, onExit }: {
     onActivate,
   });
 
-  const subtitle = "Newton MessagePad";
+  const titleText = "Extras";
+  const titleW = font.measureText(titleText);
+  const titleX = Math.floor((W - titleW) / 2);
+
+  const subtitle = "Newton";
   const subW = font.measureText(subtitle);
   const subX = Math.floor((W - subW) / 2);
 
   return (
     <>
       <TitleBar title="Extras" />
-      <LCDText x={subX} y={CONTENT_Y + 4}>{subtitle}</LCDText>
+      <LCDText x={titleX} y={CONTENT_Y + 4}>{titleText}</LCDText>
+      <LCDText x={subX} y={CONTENT_Y + 14}>{subtitle}</LCDText>
 
       {EXTRAS_ICONS.map((item, i) => {
         const col = i % GRID_COLS;
@@ -201,7 +323,7 @@ function ExtrasScreen({ onNavigate, onExit }: {
             iconName={item.icon}
             label={item.name}
             labelX={labelX}
-            labelY={iconY + ICON_PX + 2}
+            labelY={iconY + ICON_PX + 4}
             selected={isSel}
           />
         );
@@ -223,16 +345,22 @@ function ExtrasIconCell({ iconX, iconY, iconName, label, labelX, labelY, selecte
     const fb = engine.fb;
     const ax = iconX + offsetX;
     const ay = iconY + offsetY;
-    const bx = ax - 2;
-    const by = ay - 2;
-    const bw = ICON_PX + 4;
-    const bh = ICON_PX + 4;
-    if (selected) {
-      for (let i = 0; i < bw; i++) { fb.set(bx + i, by, 1); fb.set(bx + i, by + bh - 1, 1); }
-      for (let i = 1; i < bh - 1; i++) { fb.set(bx, by + i, 1); fb.set(bx + bw - 1, by + i, 1); }
-    } else {
-      for (let i = 0; i < bw; i++) { fb.set(bx + i, by, 0); fb.set(bx + i, by + bh - 1, 0); }
-      for (let i = 1; i < bh - 1; i++) { fb.set(bx, by + i, 0); fb.set(bx + bw - 1, by + i, 0); }
+    // 2px thick selection border
+    const bx = ax - 3;
+    const by = ay - 3;
+    const bw = ICON_PX + 6;
+    const bh = ICON_PX + 6;
+
+    // Clear old border area
+    for (let t = 0; t < 2; t++) {
+      for (let i = 0; i < bw; i++) {
+        fb.set(bx + i, by + t, selected ? 1 : 0);
+        fb.set(bx + i, by + bh - 1 - t, selected ? 1 : 0);
+      }
+      for (let i = 2; i < bh - 2; i++) {
+        fb.set(bx + t, by + i, selected ? 1 : 0);
+        fb.set(bx + bw - 1 - t, by + i, selected ? 1 : 0);
+      }
     }
     engine.markDirty();
   }, [engine, offsetX, offsetY, iconX, iconY, selected]);
@@ -269,7 +397,7 @@ const NOTEPAD_DATA: NotepadItem[] = [
   { text: "Book flights", checked: true },
 ];
 
-const LINE_H = 14;
+const LINE_H = 16;
 
 function NotepadScreen({ onExtras }: {
   onExtras: () => void;
@@ -333,11 +461,17 @@ function NotepadScreen({ onExtras }: {
     // Clear content area
     fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
 
-    // Draw ruled lines
+    // Thick top border line (2px)
+    for (let x = ox + 8; x < ox + W - 8; x++) {
+      fb.set(x, CONTENT_Y + oy + 1, 0.6);
+      fb.set(x, CONTENT_Y + oy + 2, 0.6);
+    }
+
+    // Draw ruled lines with visible intensity
     for (let row = 0; row < visibleCount; row++) {
       const lineY = CONTENT_Y + oy + row * LINE_H + LINE_H - 1;
-      for (let x = ox + 4; x < ox + W - 4; x++) {
-        fb.set(x, lineY, 0.15);
+      for (let x = ox + 8; x < ox + W - 14; x++) {
+        fb.set(x, lineY, 0.25);
       }
     }
 
@@ -345,18 +479,18 @@ function NotepadScreen({ onExtras }: {
     const visible = items.slice(scrollY, scrollY + visibleCount);
     visible.forEach((item, i) => {
       const itemIdx = scrollY + i;
-      const itemY = CONTENT_Y + oy + i * LINE_H + 2;
+      const itemY = CONTENT_Y + oy + i * LINE_H + 4;
 
       // Highlight selected row
       if (itemIdx === selected) {
-        fb.fillRect(ox + 2, CONTENT_Y + oy + i * LINE_H, W - 4, LINE_H - 1, 0.12);
+        fb.fillRect(ox + 8, CONTENT_Y + oy + i * LINE_H + 1, W - 22, LINE_H - 2, 0.1);
       }
 
       if (item.text === "") return;
 
       if (item.checked !== undefined) {
-        // Draw checkbox 8x8 border at x=6
-        const cbX = ox + 6;
+        // Draw checkbox 8x8 at x=10
+        const cbX = ox + 10;
         const cbY = itemY;
         for (let bx = 0; bx < 8; bx++) {
           fb.set(cbX + bx, cbY, 1);
@@ -366,7 +500,7 @@ function NotepadScreen({ onExtras }: {
           fb.set(cbX, cbY + by, 1);
           fb.set(cbX + 7, cbY + by, 1);
         }
-        // Draw checkmark if checked
+        // Checkmark if checked
         if (item.checked) {
           fb.set(cbX + 2, cbY + 4, 1);
           fb.set(cbX + 3, cbY + 5, 1);
@@ -374,19 +508,46 @@ function NotepadScreen({ onExtras }: {
           fb.set(cbX + 5, cbY + 3, 1);
           fb.set(cbX + 6, cbY + 2, 1);
         }
-        font.drawText(fb, item.text, ox + 18, itemY, { intensity: 1 });
+        font.drawText(fb, item.text, ox + 22, itemY, { intensity: 1 });
       } else {
-        font.drawText(fb, item.text, ox + 6, itemY, { intensity: 1 });
+        // Bullet point for non-checkbox items
+        const bx = ox + 10;
+        const by = itemY + 3;
+        fb.set(bx, by, 1);
+        fb.set(bx + 1, by, 1);
+        fb.set(bx, by + 1, 1);
+        fb.set(bx + 1, by + 1, 1);
+        font.drawText(fb, item.text, ox + 16, itemY, { intensity: 1 });
       }
     });
 
-    // Scrollbar
+    // Scroll arrows on right margin instead of scrollbar
     if (items.length > visibleCount) {
-      const barH = Math.max(4, Math.round(CONTENT_H * (visibleCount / items.length)));
-      const barY = CONTENT_Y + oy + Math.round((CONTENT_H - barH) * (scrollY / maxScroll));
-      for (let i = 0; i < barH; i++) {
-        fb.set(ox + W - 2, barY + i, 0.6);
-      }
+      const arrowX = ox + W - 10;
+
+      // Up arrow (triangle)
+      const upY = CONTENT_Y + oy + 4;
+      fb.set(arrowX + 2, upY, 1);
+      fb.set(arrowX + 1, upY + 1, 1);
+      fb.set(arrowX + 2, upY + 1, 1);
+      fb.set(arrowX + 3, upY + 1, 1);
+      fb.set(arrowX, upY + 2, 1);
+      fb.set(arrowX + 1, upY + 2, 1);
+      fb.set(arrowX + 2, upY + 2, 1);
+      fb.set(arrowX + 3, upY + 2, 1);
+      fb.set(arrowX + 4, upY + 2, 1);
+
+      // Down arrow (triangle)
+      const dnY = CONTENT_Y + oy + CONTENT_H - 8;
+      fb.set(arrowX, dnY, 1);
+      fb.set(arrowX + 1, dnY, 1);
+      fb.set(arrowX + 2, dnY, 1);
+      fb.set(arrowX + 3, dnY, 1);
+      fb.set(arrowX + 4, dnY, 1);
+      fb.set(arrowX + 1, dnY + 1, 1);
+      fb.set(arrowX + 2, dnY + 1, 1);
+      fb.set(arrowX + 3, dnY + 1, 1);
+      fb.set(arrowX + 2, dnY + 2, 1);
     }
 
     engine.markDirty();
@@ -420,8 +581,8 @@ const CONTACTS: Contact[] = [
   { name: "Nikola Tesla", phone: "555-1401", address: "8 AC Current Pl", email: "nikola@tesla.rs" },
 ];
 
-const TAB_W = 14;
-const CONTACT_H = 22;
+const TAB_W = 16;
+const CONTACT_H = 24;
 
 function NamesScreen({ onExtras }: {
   onExtras: () => void;
@@ -476,58 +637,89 @@ function NamesScreen({ onExtras }: {
 
     if (expanded) {
       const contact = CONTACTS[selected];
-      const cx = ox + 6;
-      let cy = CONTENT_Y + oy + 8;
+      const cx = ox + 12;
+      let cy = CONTENT_Y + oy + 12;
+
+      // Contact card with thick 2px border
+      const cardX = ox + 8;
+      const cardY = CONTENT_Y + oy + 4;
+      const cardW = W - 16;
+      const cardH = CONTENT_H - 24;
+      for (let t = 0; t < 2; t++) {
+        for (let i = 0; i < cardW; i++) {
+          fb.set(cardX + i, cardY + t, 1);
+          fb.set(cardX + i, cardY + cardH - 1 - t, 1);
+        }
+        for (let i = 2; i < cardH - 2; i++) {
+          fb.set(cardX + t, cardY + i, 1);
+          fb.set(cardX + cardW - 1 - t, cardY + i, 1);
+        }
+      }
 
       // Name with underline
       font.drawText(fb, contact.name, cx, cy, { intensity: 1 });
       const nameW = font.measureText(contact.name);
-      for (let x = cx; x < cx + nameW; x++) fb.set(x, cy + 7, 1);
-      cy += 18;
+      for (let x = cx; x < cx + nameW; x++) fb.set(x, cy + 8, 1);
+      cy += 20;
 
-      font.drawText(fb, `Tel: ${contact.phone}`, cx, cy, { intensity: 0.8 });
-      cy += 14;
-      font.drawText(fb, `Addr: ${contact.address}`, cx, cy, { intensity: 0.8 });
-      cy += 14;
-      font.drawText(fb, `Mail: ${contact.email}`, cx, cy, { intensity: 0.8 });
+      // Ruled separator
+      for (let x = cx; x < ox + W - 12; x++) fb.set(x, cy - 4, 0.3);
 
-      // Divider
-      const divY = CONTENT_Y + oy + CONTENT_H - 14;
-      for (let x = ox; x < ox + W; x++) fb.set(x, divY, 0.4);
+      font.drawText(fb, `Tel: ${contact.phone}`, cx, cy, { intensity: 0.9 });
+      cy += 16;
 
-      // Hint
+      // Ruled separator
+      for (let x = cx; x < ox + W - 12; x++) fb.set(x, cy - 4, 0.3);
+
+      font.drawText(fb, `Addr: ${contact.address}`, cx, cy, { intensity: 0.9 });
+      cy += 16;
+
+      // Ruled separator
+      for (let x = cx; x < ox + W - 12; x++) fb.set(x, cy - 4, 0.3);
+
+      font.drawText(fb, `Mail: ${contact.email}`, cx, cy, { intensity: 0.9 });
+
+      // Hint at bottom
       const hint = "Esc to go back";
       const hintW = font.measureText(hint);
       const hintX = ox + Math.floor((W - hintW) / 2);
-      font.drawText(fb, hint, hintX, divY + 3, { intensity: 0.5 });
+      font.drawText(fb, hint, hintX, cardY + cardH + 4, { intensity: 0.5 });
     } else {
-      // Tab strip
+      // Tab strip on left with thick border
       const selLetter = CONTACTS[selected].name[0];
+
+      // Thick vertical divider for tab strip
+      for (let y = CONTENT_Y + oy; y < CONTENT_Y + oy + CONTENT_H; y++) {
+        fb.set(ox + TAB_W, y, 1);
+        fb.set(ox + TAB_W + 1, y, 1);
+      }
+
       letters.forEach((letter, i) => {
-        const tabY = CONTENT_Y + oy + i * 12 + 2;
+        const tabY = CONTENT_Y + oy + i * 14 + 4;
         const isSel = letter === selLetter;
         if (isSel) {
-          fb.fillRect(ox + 1, tabY - 1, TAB_W - 2, 10, 1);
-          font.drawText(fb, letter, ox + 3, tabY, { intensity: 0 });
+          fb.fillRect(ox + 1, tabY - 2, TAB_W - 1, 12, 1);
+          font.drawText(fb, letter, ox + 4, tabY, { intensity: 0 });
         } else {
-          font.drawText(fb, letter, ox + 3, tabY, { intensity: 0.7 });
+          font.drawText(fb, letter, ox + 4, tabY, { intensity: 0.7 });
         }
       });
 
-      // Vertical divider
-      for (let y = CONTENT_Y + oy; y < CONTENT_Y + oy + CONTENT_H; y++) {
-        fb.set(ox + TAB_W, y, 0.4);
-      }
-
-      // Contact list
-      const listX = ox + TAB_W + 4;
+      // Contact list with thick bordered panels
+      const listX = ox + TAB_W + 6;
       CONTACTS.forEach((contact, i) => {
         const itemY = CONTENT_Y + oy + i * CONTACT_H;
         if (i === selected) {
-          fb.fillRect(ox + TAB_W + 1, itemY, W - TAB_W - 1, CONTACT_H, 0.12);
+          fb.fillRect(ox + TAB_W + 2, itemY + 1, W - TAB_W - 4, CONTACT_H - 2, 0.12);
         }
         font.drawText(fb, contact.name, listX, itemY + 4, { intensity: 1 });
         font.drawText(fb, contact.phone, listX, itemY + 14, { intensity: 0.6 });
+
+        // Ruled separator line
+        const sepY = itemY + CONTACT_H - 1;
+        for (let x = ox + TAB_W + 2; x < ox + W - 2; x++) {
+          fb.set(x, sepY, 0.3);
+        }
       });
     }
 
@@ -565,8 +757,6 @@ function DatesScreen({ onExtras }: {
   const { engine, offsetX, offsetY } = useLCD();
 
   useCancel(onExtras);
-
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   const onLeft = useCallback(() => {
     setSelectedDay(d => Math.max(1, d - 1));
@@ -623,20 +813,26 @@ function DatesScreen({ onExtras }: {
 
     fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
 
-    const CELL_W = Math.floor((W - 8) / 7);
-    const CAL_X = 4;
-    const CAL_Y = CONTENT_Y + 16;
-    const GRID_Y = CAL_Y + 12;
+    const CELL_W = Math.floor((W - 16) / 7);
+    const CAL_X = 8;
+    const CAL_Y = CONTENT_Y + 20;
+    const GRID_Y = CAL_Y + 14;
     const CELL_H_CAL = 14;
 
-    // Month header
-    const headerY = CONTENT_Y + 4;
+    // Month header with thick underline
+    const headerY = CONTENT_Y + 6;
     const monthLabel = `${MONTH_NAMES[month]} ${year}`;
     const labelW = font.measureText(monthLabel);
     const labelX = ox + Math.floor((W - labelW) / 2);
-    font.drawText(fb, "<", ox + 4, headerY, { intensity: 0.7 });
+    font.drawText(fb, "<", ox + 8, headerY, { intensity: 0.7 });
     font.drawText(fb, monthLabel, labelX, headerY, { intensity: 1 });
-    font.drawText(fb, ">", ox + W - 4 - font.measureText(">"), headerY, { intensity: 0.7 });
+    font.drawText(fb, ">", ox + W - 8 - font.measureText(">"), headerY, { intensity: 0.7 });
+
+    // Thick divider under month header (2px)
+    for (let x = ox + 8; x < ox + W - 8; x++) {
+      fb.set(x, headerY + oy - oy + 10, 0.5);
+      fb.set(x, headerY + oy - oy + 11, 0.5);
+    }
 
     // Day-of-week headers
     const DOW = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -645,9 +841,12 @@ function DatesScreen({ onExtras }: {
       font.drawText(fb, d, dx, CAL_Y, { intensity: 0.8 });
     });
 
-    // Divider under headers
+    // Divider under day headers (2px)
     const divY1 = CAL_Y + 10;
-    for (let x = ox; x < ox + W; x++) fb.set(x, divY1, 0.3);
+    for (let x = ox + 8; x < ox + W - 8; x++) {
+      fb.set(x, divY1, 0.4);
+      fb.set(x, divY1 + 1, 0.4);
+    }
 
     // Calendar grid
     const firstDay = new Date(year, month, 1).getDay();
@@ -671,7 +870,7 @@ function DatesScreen({ onExtras }: {
       const numY = cellY + 2;
 
       if (day === selectedDay) {
-        // Inverted
+        // Inverted selection
         fb.fillRect(cellX + 1, cellY, CELL_W - 2, CELL_H_CAL - 1, 1);
         font.drawText(fb, numStr, numX, numY, { intensity: 0 });
       } else {
@@ -688,13 +887,16 @@ function DatesScreen({ onExtras }: {
     // Rows used
     const totalSlots = firstDay + daysCount;
     const rowsUsed = Math.ceil(totalSlots / 7);
-    const gridBottom = oy + GRID_Y + rowsUsed * CELL_H_CAL + 2;
+    const gridBottom = oy + GRID_Y + rowsUsed * CELL_H_CAL + 4;
 
-    // Divider below grid
-    for (let x = ox; x < ox + W; x++) fb.set(x, gridBottom, 0.3);
+    // Thick divider below grid (2px)
+    for (let x = ox + 8; x < ox + W - 8; x++) {
+      fb.set(x, gridBottom, 0.4);
+      fb.set(x, gridBottom + 1, 0.4);
+    }
 
-    // Event detail
-    const eventY = gridBottom + 4;
+    // Event detail area
+    const eventY = gridBottom + 8;
     const mm2 = String(month + 1).padStart(2, "0");
     const dd2 = String(selectedDay).padStart(2, "0");
     const selKey = `${year}-${mm2}-${dd2}`;
@@ -702,10 +904,17 @@ function DatesScreen({ onExtras }: {
 
     if (events && events.length > 0) {
       events.forEach((ev, i) => {
-        font.drawText(fb, `* ${ev}`, ox + 6, eventY + i * 12, { intensity: 1 });
+        // Bullet + text
+        const bx = ox + 10;
+        const by = eventY + i * 14 + 3;
+        fb.set(bx, by, 1);
+        fb.set(bx + 1, by, 1);
+        fb.set(bx, by + 1, 1);
+        fb.set(bx + 1, by + 1, 1);
+        font.drawText(fb, ev, ox + 16, eventY + i * 14, { intensity: 1 });
       });
     } else {
-      font.drawText(fb, "No events", ox + 6, eventY, { intensity: 0.4 });
+      font.drawText(fb, "No events", ox + 10, eventY, { intensity: 0.4 });
     }
 
     engine.markDirty();
@@ -722,8 +931,8 @@ function DatesScreen({ onExtras }: {
 // --- Calc Screen ---
 
 const CALC_BUTTONS: string[][] = [
-  ["C", "±", "%", "÷"],
-  ["7", "8", "9", "×"],
+  ["C", "\xb1", "%", "\xf7"],
+  ["7", "8", "9", "\xd7"],
   ["4", "5", "6", "-"],
   ["1", "2", "3", "+"],
   ["0", "", ".", "="],
@@ -731,11 +940,12 @@ const CALC_BUTTONS: string[][] = [
 
 const CALC_COLS = 4;
 const CALC_ROWS = 5;
-const CALC_BTN_W = Math.floor((W) / CALC_COLS);
-const CALC_DISPLAY_H = 28;
+const CALC_BTN_W = Math.floor((W - 16) / CALC_COLS);
+const CALC_DISPLAY_H = 32;
 const CALC_DIVIDER_Y = CONTENT_Y + CALC_DISPLAY_H;
-const CALC_GRID_Y = CALC_DIVIDER_Y + 1;
-const CALC_BTN_H = Math.floor((CONTENT_H - CALC_DISPLAY_H - 1) / CALC_ROWS);
+const CALC_GRID_Y = CALC_DIVIDER_Y + 2;
+const CALC_BTN_H = Math.floor((CONTENT_H - CALC_DISPLAY_H - 2) / CALC_ROWS);
+const CALC_GRID_X = 8;
 
 function CalcScreen({ onExtras }: { onExtras: () => void }) {
   const [display, setDisplay] = useState("0");
@@ -770,7 +980,7 @@ function CalcScreen({ onExtras }: { onExtras: () => void }) {
       return;
     }
 
-    if (label === "±") {
+    if (label === "\xb1") {
       setDisplay(d => {
         const n = parseFloat(d);
         return String(-n);
@@ -786,8 +996,8 @@ function CalcScreen({ onExtras }: { onExtras: () => void }) {
       return;
     }
 
-    if (label === "÷" || label === "×" || label === "-" || label === "+") {
-      const opMap: Record<string, string> = { "÷": "/", "×": "*", "-": "-", "+": "+" };
+    if (label === "\xf7" || label === "\xd7" || label === "-" || label === "+") {
+      const opMap: Record<string, string> = { "\xf7": "/", "\xd7": "*", "-": "-", "+": "+" };
       setOperand(parseFloat(display));
       setOperator(opMap[label]);
       setResetNext(true);
@@ -831,7 +1041,6 @@ function CalcScreen({ onExtras }: { onExtras: () => void }) {
 
   const getButtonAt = useCallback((row: number, col: number): string => {
     const label = CALC_BUTTONS[row][col];
-    // 0 spans col 0 and 1
     if (row === 4 && col === 1) return "";
     return label;
   }, []);
@@ -840,7 +1049,6 @@ function CalcScreen({ onExtras }: { onExtras: () => void }) {
   const onDown = useCallback(() => { setSelRow(r => Math.min(CALC_ROWS - 1, r + 1)); return true; }, []);
   const onLeft = useCallback(() => {
     setSelCol(c => {
-      // skip blank cell
       let next = Math.max(0, c - 1);
       if (selRow === 4 && next === 1) next = 0;
       return next;
@@ -877,51 +1085,69 @@ function CalcScreen({ onExtras }: { onExtras: () => void }) {
 
     fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
 
-    // Display area
+    // Display area with thick border
+    const dispX = ox + 8;
+    const dispY = CONTENT_Y + oy + 2;
+    const dispW = W - 16;
+    const dispH = CALC_DISPLAY_H - 4;
+    for (let t = 0; t < 2; t++) {
+      for (let i = 0; i < dispW; i++) {
+        fb.set(dispX + i, dispY + t, 0.5);
+        fb.set(dispX + i, dispY + dispH - 1 - t, 0.5);
+      }
+      for (let i = 2; i < dispH - 2; i++) {
+        fb.set(dispX + t, dispY + i, 0.5);
+        fb.set(dispX + dispW - 1 - t, dispY + i, 0.5);
+      }
+    }
+
     const displayText = display.length > 12 ? display.slice(0, 12) : display;
     const textW = font.measureText(displayText, 2);
-    const textX = ox + W - textW - 4;
+    const textX = ox + W - textW - 14;
     const textY = CONTENT_Y + oy + Math.floor((CALC_DISPLAY_H - 14) / 2);
     font.drawText(fb, displayText, textX, textY, { scale: 2, intensity: 1 });
 
     // Operator indicator
     if (operator) {
-      const opDisplay: Record<string, string> = { "/": "÷", "*": "×", "-": "-", "+": "+" };
+      const opDisplay: Record<string, string> = { "/": "\xf7", "*": "\xd7", "-": "-", "+": "+" };
       const opStr = opDisplay[operator] || operator;
-      font.drawText(fb, opStr, ox + 4, textY, { intensity: 0.6 });
+      font.drawText(fb, opStr, ox + 14, textY, { intensity: 0.6 });
     }
 
-    // Divider below display
-    for (let x = ox; x < ox + W; x++) fb.set(x, CALC_DIVIDER_Y + oy, 0.5);
+    // Thick divider below display (2px)
+    for (let x = ox; x < ox + W; x++) {
+      fb.set(x, CALC_DIVIDER_Y + oy, 0.6);
+      fb.set(x, CALC_DIVIDER_Y + oy + 1, 0.6);
+    }
 
-    // Button grid
+    // Button grid with 2px borders
     for (let row = 0; row < CALC_ROWS; row++) {
       for (let col = 0; col < CALC_COLS; col++) {
         const label = CALC_BUTTONS[row][col];
-        // Skip col 1 of row 4 (blank, 0 spans)
         if (row === 4 && col === 1) continue;
 
         const btnW = (row === 4 && col === 0) ? CALC_BTN_W * 2 : CALC_BTN_W;
-        const bx = ox + col * CALC_BTN_W;
+        const bx = ox + CALC_GRID_X + col * CALC_BTN_W;
         const by = oy + CALC_GRID_Y + row * CALC_BTN_H;
 
         const isSel = row === selRow && (
           col === selCol || (row === 4 && col === 0 && selCol <= 1)
         );
 
-        // Border
-        for (let i = 0; i < btnW; i++) {
-          fb.set(bx + i, by, 0.3);
-          fb.set(bx + i, by + CALC_BTN_H - 1, 0.3);
-        }
-        for (let i = 0; i < CALC_BTN_H; i++) {
-          fb.set(bx, by + i, 0.3);
-          fb.set(bx + btnW - 1, by + i, 0.3);
+        // 2px thick border
+        for (let t = 0; t < 2; t++) {
+          for (let i = 0; i < btnW; i++) {
+            fb.set(bx + i, by + t, 0.4);
+            fb.set(bx + i, by + CALC_BTN_H - 1 - t, 0.4);
+          }
+          for (let i = 2; i < CALC_BTN_H - 2; i++) {
+            fb.set(bx + t, by + i, 0.4);
+            fb.set(bx + btnW - 1 - t, by + i, 0.4);
+          }
         }
 
         if (isSel) {
-          // Filled invert
-          fb.fillRect(bx + 1, by + 1, btnW - 2, CALC_BTN_H - 2, 1);
+          fb.fillRect(bx + 2, by + 2, btnW - 4, CALC_BTN_H - 4, 1);
         }
 
         if (label) {
@@ -966,8 +1192,8 @@ function PrefsScreen({ onExtras, theme, onThemeChange, camera, onCameraChange, p
   useCancel(onExtras);
 
   const ROW_COUNT = 4;
-  const ROW_SPACING = 16;
-  const FIRST_ROW_Y = CONTENT_Y + 8;
+  const ROW_SPACING = 20;
+  const FIRST_ROW_Y = CONTENT_Y + 12;
 
   const getLabel = (row: number) => ["Theme", "Camera", "Pixels", "Persp."][row];
   const getValue = (row: number): string => {
@@ -1035,15 +1261,25 @@ function PrefsScreen({ onExtras, theme, onThemeChange, camera, onCameraChange, p
       const valueW = font.measureText(value);
       const selected = row === selectedRow;
 
-      font.drawText(fb, label, ox + 8, rowY, { intensity: 1 });
-      font.drawText(fb, value, ox + W - valueW - 8, rowY, { intensity: selected ? 1 : 0.7 });
+      font.drawText(fb, label, ox + 12, rowY, { intensity: 1 });
+      font.drawText(fb, value, ox + W - valueW - 12, rowY, { intensity: selected ? 1 : 0.7 });
+
+      // Ruled separator below each row
+      const sepY = rowY + 12;
+      for (let x = ox + 8; x < ox + W - 8; x++) {
+        fb.set(x, sepY, 0.2);
+      }
     }
 
+    // Thick divider before notice
     const noticeText = "Changes apply live";
     const noticeW = font.measureText(noticeText);
-    const noticeY = FIRST_ROW_Y + ROW_COUNT * ROW_SPACING + 8 + oy;
-    const divY = noticeY - 4;
-    for (let x = ox; x < ox + W; x++) fb.set(x, divY, 0.3);
+    const noticeY = FIRST_ROW_Y + ROW_COUNT * ROW_SPACING + 12 + oy;
+    const divY = noticeY - 6;
+    for (let x = ox + 8; x < ox + W - 8; x++) {
+      fb.set(x, divY, 0.4);
+      fb.set(x, divY + 1, 0.4);
+    }
     font.drawText(fb, noticeText, ox + Math.floor((W - noticeW) / 2), noticeY, { intensity: 0.5 });
 
     engine.markDirty();
