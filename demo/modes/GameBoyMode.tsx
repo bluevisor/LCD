@@ -47,9 +47,9 @@ function BootScreen({ onDone }: { onDone: () => void }) {
     const id = setInterval(() => {
       setTextY(y => {
         if (y >= targetY) return targetY;
-        return y + 12;
+        return y + 8;
       });
-    }, 150);
+    }, 67);
     return () => clearInterval(id);
   }, [targetY]);
 
