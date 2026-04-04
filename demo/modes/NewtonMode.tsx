@@ -22,15 +22,7 @@ const CONTENT_H = H - TITLE_H - 1 - BOTTOM_H - 1;
 
 const CAMERAS: string[] = ["straight", "isometric", "desk", "handheld"];
 
-const APP_ORDER = ["notepad", "names", "dates"] as const;
-type AppScreen = (typeof APP_ORDER)[number];
-type Screen = "extras" | AppScreen;
-
-const APP_TITLES: Record<AppScreen, string> = {
-  notepad: "Notepad",
-  names: "Names",
-  dates: "Dates",
-};
+type Screen = "extras" | "notepad" | "names" | "dates" | "calc" | "prefs";
 
 function useCancel(onBack: () => void) {
   const { engine } = useLCD();
@@ -51,54 +43,17 @@ function ClearRect({ x, y, width, height, deps }: {
   return null;
 }
 
-// --- Title Bar ---
-
-function TitleBar({ title, screen, onNavigate }: {
-  title: string;
-  screen: Screen;
-  onNavigate: (s: Screen) => void;
-}) {
-  const isApp = screen !== "extras";
+function TitleBar({ title }: { title: string }) {
   const titleW = font.measureText(title);
   const titleX = Math.floor((W - titleW) / 2);
-
-  const onLeft = useCallback(() => {
-    if (!isApp) return;
-    const idx = APP_ORDER.indexOf(screen as AppScreen);
-    if (idx <= 0) onNavigate("extras");
-    else onNavigate(APP_ORDER[idx - 1]);
-  }, [isApp, screen, onNavigate]);
-
-  const onRight = useCallback(() => {
-    if (!isApp) return;
-    const idx = APP_ORDER.indexOf(screen as AppScreen);
-    if (idx >= APP_ORDER.length - 1) onNavigate("extras");
-    else onNavigate(APP_ORDER[idx + 1]);
-  }, [isApp, screen, onNavigate]);
-
   return (
     <>
       <LCDPanel x={0} y={0} width={W} height={TITLE_H} border={false}>
-        {isApp && <LCDIcon x={2} y={3} name="arrow_left" />}
         <LCDText x={titleX} y={3}>{title}</LCDText>
-        {isApp && <LCDIcon x={W - 10} y={3} name="arrow_right" />}
       </LCDPanel>
       <LCDDivider x={0} y={TITLE_H} length={W} />
-      {isApp && <TitleBarNav onLeft={onLeft} onRight={onRight} />}
     </>
   );
-}
-
-function TitleBarNav({ onLeft, onRight }: { onLeft: () => void; onRight: () => void }) {
-  // Invisible focus item to capture left/right on title bar arrows
-  const { engine, offsetX, offsetY } = useLCD();
-  useFocus({
-    rect: { x: offsetX, y: offsetY, width: W, height: TITLE_H },
-    order: 1,
-    onLeft,
-    onRight,
-  });
-  return null;
 }
 
 // --- Bottom Bar ---
@@ -153,8 +108,8 @@ const EXTRAS_ICONS: ExtrasIcon[] = [
   { name: "Notepad", icon: "notepad", screen: "notepad" },
   { name: "Names", icon: "person", screen: "names" },
   { name: "Dates", icon: "calendar", screen: "dates" },
-  { name: "Calc", icon: "calculator", screen: "extras" },
-  { name: "Prefs", icon: "prefs", screen: "extras" },
+  { name: "Calc", icon: "calculator", screen: "calc" },
+  { name: "Prefs", icon: "prefs", screen: "prefs" },
 ];
 
 const GRID_COLS = 4;
@@ -224,7 +179,7 @@ function ExtrasScreen({ onNavigate, onExit }: {
 
   return (
     <>
-      <TitleBar title="Extras" screen="extras" onNavigate={onNavigate} />
+      <TitleBar title="Extras" />
       <LCDText x={subX} y={CONTENT_Y + 4}>{subtitle}</LCDText>
 
       {EXTRAS_ICONS.map((item, i) => {
@@ -316,9 +271,7 @@ const NOTEPAD_DATA: NotepadItem[] = [
 
 const LINE_H = 14;
 
-function NotepadScreen({ screen, onNavigate, onExtras }: {
-  screen: AppScreen;
-  onNavigate: (s: Screen) => void;
+function NotepadScreen({ onExtras }: {
   onExtras: () => void;
 }) {
   const [items, setItems] = useState<NotepadItem[]>(NOTEPAD_DATA.map(i => ({ ...i })));
@@ -441,7 +394,7 @@ function NotepadScreen({ screen, onNavigate, onExtras }: {
 
   return (
     <>
-      <TitleBar title="Notepad" screen={screen} onNavigate={onNavigate} />
+      <TitleBar title="Notepad" />
       <BottomBar onExtras={onExtras} />
     </>
   );
@@ -470,9 +423,7 @@ const CONTACTS: Contact[] = [
 const TAB_W = 14;
 const CONTACT_H = 22;
 
-function NamesScreen({ screen, onNavigate, onExtras }: {
-  screen: AppScreen;
-  onNavigate: (s: Screen) => void;
+function NamesScreen({ onExtras }: {
   onExtras: () => void;
 }) {
   const [selected, setSelected] = useState(0);
@@ -585,7 +536,7 @@ function NamesScreen({ screen, onNavigate, onExtras }: {
 
   return (
     <>
-      <TitleBar title="Names" screen={screen} onNavigate={onNavigate} />
+      <TitleBar title="Names" />
       <BottomBar onExtras={onExtras} />
     </>
   );
@@ -605,9 +556,7 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-function DatesScreen({ screen, onNavigate, onExtras }: {
-  screen: AppScreen;
-  onNavigate: (s: Screen) => void;
+function DatesScreen({ onExtras }: {
   onExtras: () => void;
 }) {
   const [year, setYear] = useState(2026);
@@ -764,7 +713,20 @@ function DatesScreen({ screen, onNavigate, onExtras }: {
 
   return (
     <>
-      <TitleBar title="Dates" screen={screen} onNavigate={onNavigate} />
+      <TitleBar title="Dates" />
+      <BottomBar onExtras={onExtras} />
+    </>
+  );
+}
+
+function SimpleScreen({ title, onExtras }: { title: string; onExtras: () => void }) {
+  useCancel(onExtras);
+  const text = "Coming soon";
+  const textW = font.measureText(text);
+  return (
+    <>
+      <TitleBar title={title} />
+      <LCDText x={Math.floor((W - textW) / 2)} y={CONTENT_Y + Math.floor(CONTENT_H / 2) - 4}>{text}</LCDText>
       <BottomBar onExtras={onExtras} />
     </>
   );
@@ -818,9 +780,11 @@ export function NewtonMode({ onExit }: { onExit: () => void }) {
         <ClearRect x={0} y={0} width={W} height={H} deps={[screen]} />
 
         {screen === "extras" && <ExtrasScreen onNavigate={setScreen} onExit={onExit} />}
-        {screen === "notepad" && <NotepadScreen screen="notepad" onNavigate={setScreen} onExtras={goExtras} />}
-        {screen === "names" && <NamesScreen screen="names" onNavigate={setScreen} onExtras={goExtras} />}
-        {screen === "dates" && <DatesScreen screen="dates" onNavigate={setScreen} onExtras={goExtras} />}
+        {screen === "notepad" && <NotepadScreen onExtras={goExtras} />}
+        {screen === "names" && <NamesScreen onExtras={goExtras} />}
+        {screen === "dates" && <DatesScreen onExtras={goExtras} />}
+        {screen === "calc" && <SimpleScreen title="Calculator" onExtras={goExtras} />}
+        {screen === "prefs" && <SimpleScreen title="Preferences" onExtras={goExtras} />}
       </LCDScreen>
     </div>
   );
