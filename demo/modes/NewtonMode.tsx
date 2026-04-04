@@ -282,6 +282,163 @@ function ExtrasIconCell({ iconX, iconY, iconName, label, labelX, labelY, selecte
   );
 }
 
+// --- Notepad Screen ---
+
+interface NotepadItem {
+  text: string;
+  checked?: boolean;
+}
+
+const NOTEPAD_DATA: NotepadItem[] = [
+  { text: "Welcome to Newton!" },
+  { text: "Tap items to interact" },
+  { text: "" },
+  { text: "Shopping List:" },
+  { text: "Milk", checked: false },
+  { text: "Eggs", checked: true },
+  { text: "Bread", checked: false },
+  { text: "Butter", checked: true },
+  { text: "" },
+  { text: "Ideas:" },
+  { text: "Learn to draw" },
+  { text: "Fix the roof" },
+  { text: "Call Mom", checked: false },
+  { text: "Book flights", checked: true },
+];
+
+const LINE_H = 14;
+
+function NotepadScreen({ screen, onNavigate, onExtras }: {
+  screen: AppScreen;
+  onNavigate: (s: Screen) => void;
+  onExtras: () => void;
+}) {
+  const [items, setItems] = useState<NotepadItem[]>(NOTEPAD_DATA.map(i => ({ ...i })));
+  const [selected, setSelected] = useState(0);
+  const [scrollY, setScrollY] = useState(0);
+
+  useCancel(onExtras);
+
+  const visibleCount = Math.floor(CONTENT_H / LINE_H);
+  const maxScroll = Math.max(0, items.length - visibleCount);
+
+  const onUp = useCallback(() => {
+    setSelected((s) => {
+      const next = Math.max(0, s - 1);
+      setScrollY((sc) => Math.min(sc, next));
+      return next;
+    });
+    return true;
+  }, []);
+
+  const onDown = useCallback(() => {
+    setSelected((s) => {
+      const next = Math.min(items.length - 1, s + 1);
+      setScrollY((sc) => {
+        const minScroll = next - visibleCount + 1;
+        return Math.min(maxScroll, Math.max(sc, minScroll));
+      });
+      return next;
+    });
+    return true;
+  }, [items.length, visibleCount, maxScroll]);
+
+  const onActivate = useCallback(() => {
+    setItems((prev) => {
+      const item = prev[selected];
+      if (item.checked === undefined) return prev;
+      const next = [...prev];
+      next[selected] = { ...item, checked: !item.checked };
+      return next;
+    });
+    return true;
+  }, [selected]);
+
+  const { engine, offsetX, offsetY } = useLCD();
+
+  useFocus({
+    rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
+    order: 10,
+    onUp,
+    onDown,
+    onActivate,
+  });
+
+  useEffect(() => {
+    const fb = engine.fb;
+    const ox = offsetX;
+    const oy = offsetY;
+
+    // Clear content area
+    fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
+
+    // Draw ruled lines
+    for (let row = 0; row < visibleCount; row++) {
+      const lineY = CONTENT_Y + oy + row * LINE_H + LINE_H - 1;
+      for (let x = ox + 4; x < ox + W - 4; x++) {
+        fb.set(x, lineY, 0.15);
+      }
+    }
+
+    // Draw items
+    const visible = items.slice(scrollY, scrollY + visibleCount);
+    visible.forEach((item, i) => {
+      const itemIdx = scrollY + i;
+      const itemY = CONTENT_Y + oy + i * LINE_H + 2;
+
+      // Highlight selected row
+      if (itemIdx === selected) {
+        fb.fillRect(ox + 2, CONTENT_Y + oy + i * LINE_H, W - 4, LINE_H - 1, 0.12);
+      }
+
+      if (item.text === "") return;
+
+      if (item.checked !== undefined) {
+        // Draw checkbox 8x8 border at x=6
+        const cbX = ox + 6;
+        const cbY = itemY;
+        for (let bx = 0; bx < 8; bx++) {
+          fb.set(cbX + bx, cbY, 1);
+          fb.set(cbX + bx, cbY + 7, 1);
+        }
+        for (let by = 0; by < 8; by++) {
+          fb.set(cbX, cbY + by, 1);
+          fb.set(cbX + 7, cbY + by, 1);
+        }
+        // Draw checkmark if checked
+        if (item.checked) {
+          fb.set(cbX + 2, cbY + 4, 1);
+          fb.set(cbX + 3, cbY + 5, 1);
+          fb.set(cbX + 4, cbY + 4, 1);
+          fb.set(cbX + 5, cbY + 3, 1);
+          fb.set(cbX + 6, cbY + 2, 1);
+        }
+        font.drawText(fb, item.text, ox + 18, itemY, { intensity: 1 });
+      } else {
+        font.drawText(fb, item.text, ox + 6, itemY, { intensity: 1 });
+      }
+    });
+
+    // Scrollbar
+    if (items.length > visibleCount) {
+      const barH = Math.max(4, Math.round(CONTENT_H * (visibleCount / items.length)));
+      const barY = CONTENT_Y + oy + Math.round((CONTENT_H - barH) * (scrollY / maxScroll));
+      for (let i = 0; i < barH; i++) {
+        fb.set(ox + W - 2, barY + i, 0.6);
+      }
+    }
+
+    engine.markDirty();
+  }, [engine, offsetX, offsetY, items, selected, scrollY, visibleCount, maxScroll]);
+
+  return (
+    <>
+      <TitleBar title="Notepad" screen={screen} onNavigate={onNavigate} />
+      <BottomBar onExtras={onExtras} />
+    </>
+  );
+}
+
 // --- Stub Screens ---
 
 function StubScreen({ title, screen, onNavigate, onExtras }: {
@@ -354,7 +511,7 @@ export function NewtonMode({ onExit }: { onExit: () => void }) {
         <ClearRect x={0} y={0} width={W} height={H} deps={[screen]} />
 
         {screen === "extras" && <ExtrasScreen onNavigate={setScreen} onExit={onExit} />}
-        {screen === "notepad" && <StubScreen title="Notepad" screen="notepad" onNavigate={setScreen} onExtras={goExtras} />}
+        {screen === "notepad" && <NotepadScreen screen="notepad" onNavigate={setScreen} onExtras={goExtras} />}
         {screen === "names" && <StubScreen title="Names" screen="names" onNavigate={setScreen} onExtras={goExtras} />}
         {screen === "dates" && <StubScreen title="Dates" screen="dates" onNavigate={setScreen} onExtras={goExtras} />}
       </LCDScreen>
