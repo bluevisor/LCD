@@ -17,11 +17,11 @@ import {
 type Mode = "picker" | "nokia" | "nokia9210" | "newton" | "palm" | "blackberry";
 
 const MODES: { key: Mode; label: string; detail: string }[] = [
-  { key: "nokia", label: "Nokia 6110", detail: "84x48  1997" },
-  { key: "nokia9210", label: "Nokia 9210", detail: "320x100  2001" },
   { key: "newton", label: "Apple Newton", detail: "240x320  1993" },
   { key: "palm", label: "Palm Pilot", detail: "160x160  1996" },
+  { key: "nokia", label: "Nokia 6110", detail: "84x48  1997" },
   { key: "blackberry", label: "BlackBerry 850", detail: "132x65  1999" },
+  { key: "nokia9210", label: "Nokia 9210", detail: "320x100  2001" },
 ];
 
 const font = new BitmapFont();
@@ -37,17 +37,20 @@ function useCancel(onBack: () => void) {
   }, [engine, onBack]);
 }
 
-function PickerContent({ onSelect }: { onSelect: (mode: Mode) => void }) {
-  const [selected, setSelected] = useState(0);
+function PickerContent({ onSelect, selected, setSelected }: {
+  onSelect: (mode: Mode) => void;
+  selected: number;
+  setSelected: (i: number) => void;
+}) {
   const { engine, offsetX, offsetY } = useLCD();
 
   const onUp = useCallback(() => {
-    if (selected > 0) { setSelected(s => s - 1); return true; }
+    if (selected > 0) { setSelected(selected - 1); return true; }
     return false;
   }, [selected]);
 
   const onDown = useCallback(() => {
-    if (selected < MODES.length - 1) { setSelected(s => s + 1); return true; }
+    if (selected < MODES.length - 1) { setSelected(selected + 1); return true; }
     return false;
   }, [selected]);
 
@@ -119,7 +122,11 @@ function PickerContent({ onSelect }: { onSelect: (mode: Mode) => void }) {
   return null;
 }
 
-function ModePicker({ onSelect }: { onSelect: (mode: Mode) => void }) {
+function ModePicker({ onSelect, selected, setSelected }: {
+  onSelect: (mode: Mode) => void;
+  selected: number;
+  setSelected: (i: number) => void;
+}) {
   // Calculate pixel size to fill viewport
   const [pixelSize, setPixelSize] = useState(4);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -151,7 +158,7 @@ function ModePicker({ onSelect }: { onSelect: (mode: Mode) => void }) {
       }}
     >
       <LCDScreen width={W} height={H} pixelSize={pixelSize} theme="green">
-        <PickerContent onSelect={onSelect} />
+        <PickerContent onSelect={onSelect} selected={selected} setSelected={setSelected} />
       </LCDScreen>
     </div>
   );
@@ -159,11 +166,12 @@ function ModePicker({ onSelect }: { onSelect: (mode: Mode) => void }) {
 
 export default function App() {
   const [mode, setMode] = useState<Mode>("picker");
+  const [pickerIdx, setPickerIdx] = useState(0);
 
   if (mode === "nokia") return <NokiaMode onExit={() => setMode("picker")} />;
   if (mode === "newton") return <NewtonMode onExit={() => setMode("picker")} />;
   if (mode === "palm") return <PalmMode onExit={() => setMode("picker")} />;
   if (mode === "nokia9210") return <Nokia9210Mode onExit={() => setMode("picker")} />;
   if (mode === "blackberry") return <BlackBerryMode onExit={() => setMode("picker")} />;
-  return <ModePicker onSelect={setMode} />;
+  return <ModePicker onSelect={setMode} selected={pickerIdx} setSelected={setPickerIdx} />;
 }
