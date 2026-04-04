@@ -4,15 +4,11 @@ import type { Framebuffer } from "./framebuffer";
 export interface RendererConfig {
   pixelSize: number;
   dotFill: number;
-  shadowOffset: number;
-  shadowBlur: number;
 }
 
 const DEFAULT_CONFIG: RendererConfig = {
   pixelSize: 6,
   dotFill: 0.8,
-  shadowOffset: 1,
-  shadowBlur: 1.5,
 };
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -20,22 +16,39 @@ function hexToRgb(hex: string): [number, number, number] {
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
 }
 
-function lerpColor(
-  a: [number, number, number],
-  b: [number, number, number],
-  t: number
-): string {
-  const r = Math.round(a[0] + (b[0] - a[0]) * t);
-  const g = Math.round(a[1] + (b[1] - a[1]) * t);
-  const bl = Math.round(a[2] + (b[2] - a[2]) * t);
-  return `rgb(${r},${g},${bl})`;
-}
-
 export class DotRenderer {
   private config: RendererConfig;
+  private colorCache: Uint8Array | null = null;
+  private cachedThemeBg: string = "";
+  private cachedThemeOff: string = "";
+  private cachedThemeOn: string = "";
 
   constructor(config: Partial<RendererConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  private buildColorCache(theme: LCDTheme): void {
+    if (
+      this.colorCache &&
+      this.cachedThemeBg === theme.background &&
+      this.cachedThemeOff === theme.dotOff &&
+      this.cachedThemeOn === theme.dotOn
+    ) return;
+
+    this.cachedThemeBg = theme.background;
+    this.cachedThemeOff = theme.dotOff;
+    this.cachedThemeOn = theme.dotOn;
+
+    const offRgb = hexToRgb(theme.dotOff);
+    const onRgb = hexToRgb(theme.dotOn);
+    // 256 entries * 3 channels
+    this.colorCache = new Uint8Array(256 * 3);
+    for (let i = 0; i < 256; i++) {
+      const t = i / 255;
+      this.colorCache[i * 3] = Math.round(offRgb[0] + (onRgb[0] - offRgb[0]) * t);
+      this.colorCache[i * 3 + 1] = Math.round(offRgb[1] + (onRgb[1] - offRgb[1]) * t);
+      this.colorCache[i * 3 + 2] = Math.round(offRgb[2] + (onRgb[2] - offRgb[2]) * t);
+    }
   }
 
   render(
@@ -43,52 +56,53 @@ export class DotRenderer {
     fb: Framebuffer,
     theme: LCDTheme
   ): void {
-    const { pixelSize, dotFill, shadowOffset, shadowBlur } = this.config;
-    const dotSize = pixelSize * dotFill;
-    const offset = (pixelSize - dotSize) / 2;
-    const radius = dotSize * 0.05;
+    const { pixelSize, dotFill } = this.config;
+    const dotSize = Math.round(pixelSize * dotFill);
+    const offset = Math.round((pixelSize - dotSize) / 2);
 
     const canvasW = fb.width * pixelSize;
     const canvasH = fb.height * pixelSize;
 
-    ctx.fillStyle = theme.background;
-    ctx.fillRect(0, 0, canvasW, canvasH);
+    this.buildColorCache(theme);
+    const cache = this.colorCache!;
 
-    const offRgb = hexToRgb(theme.dotOff);
-    const onRgb = hexToRgb(theme.dotOn);
-    const shadowRgb = hexToRgb(theme.shadow);
+    const imageData = ctx.createImageData(canvasW, canvasH);
+    const pixels = imageData.data;
 
+    // Fill background
+    const bgRgb = hexToRgb(theme.background);
+    for (let i = 0; i < pixels.length; i += 4) {
+      pixels[i] = bgRgb[0];
+      pixels[i + 1] = bgRgb[1];
+      pixels[i + 2] = bgRgb[2];
+      pixels[i + 3] = 255;
+    }
+
+    // Draw dots
     for (let y = 0; y < fb.height; y++) {
       for (let x = 0; x < fb.width; x++) {
         const intensity = fb.get(x, y);
-        const px = x * pixelSize + offset;
-        const py = y * pixelSize + offset;
+        const ci = Math.round(intensity * 255);
+        const r = cache[ci * 3];
+        const g = cache[ci * 3 + 1];
+        const b = cache[ci * 3 + 2];
 
-        if (intensity > 0.05) {
-          const shadowAlpha = intensity * 0.6;
-          ctx.fillStyle = `rgba(${shadowRgb[0]},${shadowRgb[1]},${shadowRgb[2]},${shadowAlpha})`;
-          ctx.save();
-          ctx.shadowBlur = shadowBlur;
-          ctx.shadowColor = `rgba(${shadowRgb[0]},${shadowRgb[1]},${shadowRgb[2]},${shadowAlpha})`;
-          ctx.beginPath();
-          ctx.roundRect(
-            px + shadowOffset,
-            py + shadowOffset,
-            dotSize,
-            dotSize,
-            radius
-          );
-          ctx.fill();
-          ctx.restore();
+        const px0 = x * pixelSize + offset;
+        const py0 = y * pixelSize + offset;
+
+        for (let dy = 0; dy < dotSize; dy++) {
+          const rowStart = (py0 + dy) * canvasW;
+          for (let dx = 0; dx < dotSize; dx++) {
+            const idx = (rowStart + px0 + dx) * 4;
+            pixels[idx] = r;
+            pixels[idx + 1] = g;
+            pixels[idx + 2] = b;
+          }
         }
-
-        const color = lerpColor(offRgb, onRgb, intensity);
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.roundRect(px, py, dotSize, dotSize, radius);
-        ctx.fill();
       }
     }
+
+    ctx.putImageData(imageData, 0, 0);
   }
 
   getCanvasSize(fb: Framebuffer): { width: number; height: number } {
