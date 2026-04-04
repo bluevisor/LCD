@@ -652,29 +652,18 @@ function BreakoutGame({ onBack }: { onBack: () => void }) {
 
 /* ── Tetris Title Screen ─────────────────────────────────── */
 
-function TetrisTitleScreen({ onStart, onSettings, onBack }: {
+function TetrisTitleScreen({ onStart, onBack }: {
   onStart: () => void;
-  onSettings: () => void;
   onBack: () => void;
 }) {
   const { engine, offsetX, offsetY } = useLCD();
-  const [selected, setSelected] = useState(0);
 
   useCancel(onBack);
-
-  const onUp = useCallback(() => { setSelected(s => Math.max(0, s - 1)); return true; }, []);
-  const onDown = useCallback(() => { setSelected(s => Math.min(1, s + 1)); return true; }, []);
-  const onActivate = useCallback(() => {
-    if (selected === 0) onStart();
-    else onSettings();
-  }, [selected, onStart, onSettings]);
 
   useFocus({
     rect: { x: offsetX, y: offsetY, width: W, height: H },
     order: 10,
-    onUp,
-    onDown,
-    onActivate,
+    onActivate: onStart,
   });
 
   useEffect(() => {
@@ -683,61 +672,96 @@ function TetrisTitleScreen({ onStart, onSettings, onBack }: {
     const oy = offsetY;
     fb.fillRect(ox, oy, W, H, 0);
 
-    // "TETRIS" bold title — draw twice offset by 1px
+    // "TETRIS" bold title — draw twice offset for bold
     const title = "TETRIS";
-    const tw = font.measureText(title, 2);
+    const tw = font.measureText(title, 3);
     const tx = ox + Math.floor((W - tw) / 2);
-    const ty = oy + 15;
-    font.drawText(fb, title, tx + 1, ty, { intensity: 1, scale: 2 });
-    font.drawText(fb, title, tx, ty, { intensity: 1, scale: 2 });
+    const ty = oy + 8;
+    font.drawText(fb, title, tx, ty, { intensity: 1, scale: 3 });
+    font.drawText(fb, title, tx + 1, ty, { intensity: 1, scale: 3 });
 
-    // "TM" small superscript after title
-    font.drawText(fb, "TM", ox + Math.floor((W + tw) / 2) + 3, ty, { intensity: 0.7, scale: 1 });
+    // "TM" superscript
+    font.drawText(fb, "TM", tx + tw + 2, ty, { intensity: 0.6 });
 
-    // Skyline silhouette — bottom third (y ~ 85 to 110)
-    const skyY = oy + 85;
-    // Buildings: filled rectangles of varying heights
-    const buildings = [
-      { x: 5,  w: 12, h: 22 },
-      { x: 19, w: 8,  h: 14 },
-      { x: 29, w: 14, h: 30 },
-      { x: 45, w: 6,  h: 18 },
-      { x: 53, w: 10, h: 25 },
-      { x: 65, w: 8,  h: 12 },
-      { x: 75, w: 16, h: 28 },
-      { x: 93, w: 10, h: 20 },
-      { x: 105,w: 12, h: 15 },
-      { x: 119,w: 8,  h: 22 },
-      { x: 129,w: 14, h: 18 },
-      { x: 145,w: 12, h: 26 },
+    // Divider line below title
+    for (let x = ox; x < ox + W; x++) fb.set(x, oy + 32, 0.5);
+
+    // Scene: Russian onion dome + buildings silhouette (y=33 to y=95)
+    const groundY = oy + 95;
+
+    // Central onion dome
+    const domeX = ox + 70;
+    // Dome bulb (onion shape)
+    for (let r = 0; r < 12; r++) {
+      const w = r < 3 ? r + 1 : r < 6 ? 6 - Math.abs(r - 4) : r < 9 ? 8 - Math.abs(r - 7) : 10 - r;
+      for (let dx = -w; dx <= w; dx++) {
+        fb.set(domeX + dx, oy + 45 + r, 1);
+      }
+    }
+    // Dome spire
+    for (let i = 0; i < 8; i++) fb.set(domeX, oy + 37 + i, 1);
+    fb.set(domeX, oy + 36, 0.7);
+    // Cross on top
+    fb.set(domeX - 1, oy + 37, 1);
+    fb.set(domeX + 1, oy + 37, 1);
+    // Dome base/tower
+    fb.fillRect(domeX - 4, oy + 57, 9, 38, 1);
+    // Tower windows
+    for (let wy = oy + 60; wy < groundY - 4; wy += 6) {
+      fb.fillRect(domeX - 2, wy, 2, 3, 0);
+      fb.fillRect(domeX + 1, wy, 2, 3, 0);
+    }
+
+    // Left buildings
+    const blds = [
+      { x: 2,  w: 14, h: 30 },
+      { x: 18, w: 10, h: 20 },
+      { x: 30, w: 12, h: 35 },
+      { x: 44, w: 8,  h: 15 },
+      { x: 54, w: 10, h: 25 },
     ];
-    for (const b of buildings) {
-      fb.fillRect(ox + b.x, skyY - b.h, b.w, b.h, 1);
-      // Windows — small dark squares
-      for (let wy = skyY - b.h + 3; wy < skyY - 3; wy += 5) {
+    for (const b of blds) {
+      fb.fillRect(ox + b.x, groundY - b.h, b.w, b.h, 1);
+      for (let wy = groundY - b.h + 3; wy < groundY - 3; wy += 5) {
         for (let wx = ox + b.x + 2; wx < ox + b.x + b.w - 2; wx += 4) {
           fb.fillRect(wx, wy, 2, 2, 0);
         }
       }
     }
-    // Ground line
-    fb.fillRect(ox, skyY, W, 2, 1);
 
-    // Menu options
-    const optY = oy + 100;
-    const opts = ["Start", "Settings"];
-    opts.forEach((opt, i) => {
-      const marker = i === selected ? "> " : "  ";
-      font.drawText(fb, marker + opt, ox + 45, optY + i * 14, { intensity: i === selected ? 1 : 0.5 });
-    });
+    // Right buildings
+    const rblds = [
+      { x: 90,  w: 10, h: 20 },
+      { x: 102, w: 14, h: 28 },
+      { x: 118, w: 8,  h: 18 },
+      { x: 128, w: 12, h: 32 },
+      { x: 142, w: 14, h: 22 },
+    ];
+    for (const b of rblds) {
+      fb.fillRect(ox + b.x, groundY - b.h, b.w, b.h, 1);
+      for (let wy = groundY - b.h + 3; wy < groundY - 3; wy += 5) {
+        for (let wx = ox + b.x + 2; wx < ox + b.x + b.w - 2; wx += 4) {
+          fb.fillRect(wx, wy, 2, 2, 0);
+        }
+      }
+    }
 
-    // Copyright line
+    // Ground
+    fb.fillRect(ox, groundY, W, 2, 1);
+
+    // Divider above menu
+    for (let x = ox; x < ox + W; x++) fb.set(x, oy + 100, 0.5);
+
+    // Menu: "> Start" only
+    font.drawText(fb, "> Start", ox + 30, oy + 108, { intensity: 1 });
+
+    // Copyright
     const copy = "c1989  Game Boy";
     const cw = font.measureText(copy);
     font.drawText(fb, copy, ox + Math.floor((W - cw) / 2), oy + H - 10, { intensity: 0.5 });
 
     engine.markDirty();
-  }, [engine, offsetX, offsetY, selected]);
+  }, [engine, offsetX, offsetY]);
 
   return null;
 }
@@ -837,14 +861,17 @@ function TetrisGame({ onBack }: { onBack: () => void }) {
       }
       if (e.key === "ArrowUp" || e.key === "z" || e.key === "x") {
         const rotated = rotateShape(g.piece);
-        if (!collides(g.board, rotated, g.pieceX, g.pieceY)) {
-          g.piece = rotated;
-        } else if (!collides(g.board, rotated, g.pieceX - 1, g.pieceY)) {
-          g.piece = rotated;
-          g.pieceX--;
-        } else if (!collides(g.board, rotated, g.pieceX + 1, g.pieceY)) {
-          g.piece = rotated;
-          g.pieceX++;
+        // Offset to rotate around center
+        const dx = Math.floor((g.piece[0].length - rotated[0].length) / 2);
+        const dy = Math.floor((g.piece.length - rotated.length) / 2);
+        const nx = g.pieceX + dx;
+        const ny = g.pieceY + dy;
+        if (!collides(g.board, rotated, nx, ny)) {
+          g.piece = rotated; g.pieceX = nx; g.pieceY = ny;
+        } else if (!collides(g.board, rotated, nx - 1, ny)) {
+          g.piece = rotated; g.pieceX = nx - 1; g.pieceY = ny;
+        } else if (!collides(g.board, rotated, nx + 1, ny)) {
+          g.piece = rotated; g.pieceX = nx + 1; g.pieceY = ny;
         }
         setFrame(f => f + 1);
       } else if (e.key === " ") {
@@ -1214,7 +1241,6 @@ export function GameBoyMode({ onExit }: { onExit: () => void }) {
         {screen === "tetris-title" && (
           <TetrisTitleScreen
             onStart={() => setScreen("tetris")}
-            onSettings={() => setScreen("settings")}
             onBack={goMenu}
           />
         )}
