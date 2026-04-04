@@ -677,12 +677,11 @@ function OptionRow({ y, label, value, options, onChange, focusOrder }: {
   useEffect(() => {
     const fb = engine.fb;
     fb.fillRect(absX, absY, W, 14, 0);
-    font.drawText(fb, label, absX + 4, absY + 2, { intensity: 1, scale: 2 });
-    const valText = `<${value}>`;
-    const valW = font.measureText(valText) * 2;
-    font.drawText(fb, valText, absX + W - valW - 4, absY + 2, {
+    font.drawText(fb, label, absX + 4, absY + 3, { intensity: 1 });
+    const valText = `< ${value} >`;
+    const valW = font.measureText(valText);
+    font.drawText(fb, valText, absX + W - valW - 4, absY + 3, {
       intensity: focused ? 1 : 0.5,
-      scale: 2,
     });
     engine.markDirty();
   }, [engine, absX, absY, label, value, focused]);
@@ -711,19 +710,20 @@ function SettingsScreen({ onBack, theme, onThemeChange, camera, onCameraChange, 
     const fb = engine.fb;
     const ox = offsetX;
     const oy = offsetY;
-    fb.fillRect(ox, oy, W, 20, 0);
+    fb.fillRect(ox, oy, W, 16, 0);
     const title = "SETTINGS";
-    const tw = font.measureText(title) * 2;
-    font.drawText(fb, title, ox + Math.floor((W - tw) / 2), oy + 4, { intensity: 1, scale: 2 });
+    const tw = font.measureText(title);
+    font.drawText(fb, title, ox + Math.floor((W - tw) / 2), oy + 4, { intensity: 1 });
+    for (let x = ox + 4; x < ox + W - 4; x++) fb.set(x, oy + 13, 0.4);
     engine.markDirty();
   }, [engine, offsetX, offsetY]);
 
   return (
     <>
-      <OptionRow y={25} label="Theme" value={theme} options={themes} onChange={(v) => onThemeChange(v as ThemePresetName)} focusOrder={10} />
-      <OptionRow y={42} label="Camera" value={camera} options={CAMERAS} onChange={onCameraChange} focusOrder={20} />
-      <OptionRow y={59} label="Pixels" value={String(pixelSize)} options={sizes} onChange={(v) => onPixelSizeChange(Number(v))} focusOrder={30} />
-      <OptionRow y={76} label="Persp" value={perspective ? "ON" : "OFF"} options={["OFF", "ON"]} onChange={(v) => onPerspectiveChange(v === "ON")} focusOrder={40} />
+      <OptionRow y={18} label="Theme" value={theme} options={themes} onChange={(v) => onThemeChange(v as ThemePresetName)} focusOrder={10} />
+      <OptionRow y={34} label="Camera" value={camera} options={CAMERAS} onChange={onCameraChange} focusOrder={20} />
+      <OptionRow y={50} label="Pixels" value={String(pixelSize)} options={sizes} onChange={(v) => onPixelSizeChange(Number(v))} focusOrder={30} />
+      <OptionRow y={66} label="Persp" value={perspective ? "ON" : "OFF"} options={["OFF", "ON"]} onChange={(v) => onPerspectiveChange(v === "ON")} focusOrder={40} />
     </>
   );
 }
