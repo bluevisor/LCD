@@ -264,19 +264,27 @@ function ExtrasIconCell({ iconX, iconY, iconName, label, labelX, labelY, selecte
 }) {
   const { engine, offsetX, offsetY } = useLCD();
 
-  // Draw highlight rect behind icon when selected
   useEffect(() => {
-    if (!selected) return;
     const fb = engine.fb;
     const ax = iconX + offsetX;
     const ay = iconY + offsetY;
-    fb.fillRect(ax - 2, ay - 2, ICON_PX + 4, ICON_PX + 4, 1);
+    const bx = ax - 2;
+    const by = ay - 2;
+    const bw = ICON_PX + 4;
+    const bh = ICON_PX + 4;
+    if (selected) {
+      for (let i = 0; i < bw; i++) { fb.set(bx + i, by, 1); fb.set(bx + i, by + bh - 1, 1); }
+      for (let i = 1; i < bh - 1; i++) { fb.set(bx, by + i, 1); fb.set(bx + bw - 1, by + i, 1); }
+    } else {
+      for (let i = 0; i < bw; i++) { fb.set(bx + i, by, 0); fb.set(bx + i, by + bh - 1, 0); }
+      for (let i = 1; i < bh - 1; i++) { fb.set(bx, by + i, 0); fb.set(bx + bw - 1, by + i, 0); }
+    }
     engine.markDirty();
   }, [engine, offsetX, offsetY, iconX, iconY, selected]);
 
   return (
     <>
-      <LCDIcon x={iconX} y={iconY} name={iconName} scale={ICON_SCALE} intensity={selected ? 0 : 1} />
+      <LCDIcon x={iconX} y={iconY} name={iconName} scale={ICON_SCALE} intensity={1} />
       <LCDText x={labelX} y={labelY}>{label}</LCDText>
     </>
   );
