@@ -752,8 +752,10 @@ function TetrisTitleScreen({ onStart, onBack }: {
     // Divider above menu
     for (let x = ox; x < ox + W; x++) fb.set(x, oy + 100, 0.5);
 
-    // Menu: "> Start" only
-    font.drawText(fb, "> Start", ox + 30, oy + 108, { intensity: 1 });
+    // Menu: "> Start" centered
+    const startText = "> Start";
+    const startW = font.measureText(startText);
+    font.drawText(fb, startText, ox + Math.floor((W - startW) / 2), oy + 108, { intensity: 1 });
 
     // Copyright
     const copy = "c1989  Game Boy";
@@ -768,29 +770,23 @@ function TetrisTitleScreen({ onStart, onBack }: {
 
 /* ── Tetris ──────────────────────────────────────────────── */
 
-const TETRO: number[][][] = [
-  [[1,1,1,1]],                               // I
-  [[1,1],[1,1]],                              // O
-  [[0,1,0],[1,1,1]],                          // T
-  [[1,0,0],[1,1,1]],                          // L
-  [[0,0,1],[1,1,1]],                          // J
-  [[0,1,1],[1,1,0]],                          // S
-  [[1,1,0],[0,1,1]],                          // Z
+// All 4 rotation states per piece — no position shifting needed
+const TETRO_ROTATIONS: number[][][][] = [
+  // I
+  [[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], [[0,0,1,0],[0,0,1,0],[0,0,1,0],[0,0,1,0]], [[0,0,0,0],[0,0,0,0],[1,1,1,1],[0,0,0,0]], [[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]]],
+  // O
+  [[[1,1],[1,1]], [[1,1],[1,1]], [[1,1],[1,1]], [[1,1],[1,1]]],
+  // T
+  [[[0,1,0],[1,1,1],[0,0,0]], [[0,1,0],[0,1,1],[0,1,0]], [[0,0,0],[1,1,1],[0,1,0]], [[0,1,0],[1,1,0],[0,1,0]]],
+  // L
+  [[[0,0,1],[1,1,1],[0,0,0]], [[0,1,0],[0,1,0],[0,1,1]], [[0,0,0],[1,1,1],[1,0,0]], [[1,1,0],[0,1,0],[0,1,0]]],
+  // J
+  [[[1,0,0],[1,1,1],[0,0,0]], [[0,1,1],[0,1,0],[0,1,0]], [[0,0,0],[1,1,1],[0,0,1]], [[0,1,0],[0,1,0],[1,1,0]]],
+  // S
+  [[[0,1,1],[1,1,0],[0,0,0]], [[0,1,0],[0,1,1],[0,0,1]], [[0,0,0],[0,1,1],[1,1,0]], [[1,0,0],[1,1,0],[0,1,0]]],
+  // Z
+  [[[1,1,0],[0,1,1],[0,0,0]], [[0,0,1],[0,1,1],[0,1,0]], [[0,0,0],[1,1,0],[0,1,1]], [[0,1,0],[1,1,0],[1,0,0]]],
 ];
-
-function rotateShape(shape: number[][]): number[][] {
-  const rows = shape.length;
-  const cols = shape[0].length;
-  const r: number[][] = [];
-  for (let c = 0; c < cols; c++) {
-    const row: number[] = [];
-    for (let rr = rows - 1; rr >= 0; rr--) {
-      row.push(shape[rr][c]);
-    }
-    r.push(row);
-  }
-  return r;
-}
 
 function TetrisGame({ onBack }: { onBack: () => void }) {
   const { engine, offsetX, offsetY } = useLCD();
@@ -804,12 +800,15 @@ function TetrisGame({ onBack }: { onBack: () => void }) {
   const BOARD_PX_W = BOARD_W * CELL;
   const BOARD_X = Math.floor((W - BOARD_PX_W) / 2);
 
+  const randPiece = () => Math.floor(Math.random() * TETRO_ROTATIONS.length);
+
   const gameRef = useRef({
     board: Array.from({ length: BOARD_H }, () => new Array(BOARD_W).fill(0)) as number[][],
-    piece: TETRO[0],
+    pieceIdx: 0,
+    rotation: 0,
     pieceX: 3,
     pieceY: 0,
-    nextPiece: TETRO[Math.floor(Math.random() * TETRO.length)],
+    nextIdx: randPiece(),
     score: 0,
     lines: 0,
     level: 1,
@@ -817,13 +816,17 @@ function TetrisGame({ onBack }: { onBack: () => void }) {
     dropCounter: 0,
   });
 
+  const getPiece = (idx: number, rot: number) => TETRO_ROTATIONS[idx][rot];
+
   const newPiece = useCallback(() => {
     const g = gameRef.current;
-    g.piece = g.nextPiece;
-    g.nextPiece = TETRO[Math.floor(Math.random() * TETRO.length)];
-    g.pieceX = Math.floor((BOARD_W - g.piece[0].length) / 2);
+    g.pieceIdx = g.nextIdx;
+    g.rotation = 0;
+    g.nextIdx = randPiece();
+    const shape = getPiece(g.pieceIdx, 0);
+    g.pieceX = Math.floor((BOARD_W - shape[0].length) / 2);
     g.pieceY = 0;
-    if (collides(g.board, g.piece, g.pieceX, g.pieceY)) {
+    if (collides(g.board, shape, g.pieceX, g.pieceY)) {
       g.gameOver = true;
     }
   }, []);
@@ -836,7 +839,7 @@ function TetrisGame({ onBack }: { onBack: () => void }) {
     g.level = 1;
     g.gameOver = false;
     g.dropCounter = 0;
-    g.nextPiece = TETRO[Math.floor(Math.random() * TETRO.length)];
+    g.nextIdx = randPiece();
     newPiece();
   }, [newPiece]);
 
@@ -860,26 +863,22 @@ function TetrisGame({ onBack }: { onBack: () => void }) {
         return;
       }
       if (e.key === "ArrowUp" || e.key === "z" || e.key === "x") {
-        const rotated = rotateShape(g.piece);
-        // Offset to rotate around center
-        const dx = Math.floor((g.piece[0].length - rotated[0].length) / 2);
-        const dy = Math.floor((g.piece.length - rotated.length) / 2);
-        const nx = g.pieceX + dx;
-        const ny = g.pieceY + dy;
-        if (!collides(g.board, rotated, nx, ny)) {
-          g.piece = rotated; g.pieceX = nx; g.pieceY = ny;
-        } else if (!collides(g.board, rotated, nx - 1, ny)) {
-          g.piece = rotated; g.pieceX = nx - 1; g.pieceY = ny;
-        } else if (!collides(g.board, rotated, nx + 1, ny)) {
-          g.piece = rotated; g.pieceX = nx + 1; g.pieceY = ny;
+        const nextRot = (g.rotation + 1) % 4;
+        const rotated = getPiece(g.pieceIdx, nextRot);
+        if (!collides(g.board, rotated, g.pieceX, g.pieceY)) {
+          g.rotation = nextRot;
+        } else if (!collides(g.board, rotated, g.pieceX - 1, g.pieceY)) {
+          g.rotation = nextRot; g.pieceX--;
+        } else if (!collides(g.board, rotated, g.pieceX + 1, g.pieceY)) {
+          g.rotation = nextRot; g.pieceX++;
         }
         setFrame(f => f + 1);
       } else if (e.key === " ") {
-        // Hard drop
-        while (!collides(g.board, g.piece, g.pieceX, g.pieceY + 1)) {
+        const shape = getPiece(g.pieceIdx, g.rotation);
+        while (!collides(g.board, shape, g.pieceX, g.pieceY + 1)) {
           g.pieceY++;
         }
-        lockPiece(g);
+        lockPiece(g, shape);
         newPiece();
       }
       setFrame(f => f + 1);
@@ -899,19 +898,21 @@ function TetrisGame({ onBack }: { onBack: () => void }) {
       tickRef.current++;
       if (tickRef.current % 3 === 0) {
         const keys = keysRef.current;
-        if (keys.has("ArrowLeft") && !collides(g.board, g.piece, g.pieceX - 1, g.pieceY)) g.pieceX--;
-        if (keys.has("ArrowRight") && !collides(g.board, g.piece, g.pieceX + 1, g.pieceY)) g.pieceX++;
-        if (keys.has("ArrowDown") && !collides(g.board, g.piece, g.pieceX, g.pieceY + 1)) g.pieceY++;
+        const shape = getPiece(g.pieceIdx, g.rotation);
+        if (keys.has("ArrowLeft") && !collides(g.board, shape, g.pieceX - 1, g.pieceY)) g.pieceX--;
+        if (keys.has("ArrowRight") && !collides(g.board, shape, g.pieceX + 1, g.pieceY)) g.pieceX++;
+        if (keys.has("ArrowDown") && !collides(g.board, shape, g.pieceX, g.pieceY + 1)) g.pieceY++;
       }
 
+      const shape = getPiece(g.pieceIdx, g.rotation);
       g.dropCounter++;
       const speed = Math.max(2, 10 - g.level);
       if (g.dropCounter >= speed) {
         g.dropCounter = 0;
-        if (!collides(g.board, g.piece, g.pieceX, g.pieceY + 1)) {
+        if (!collides(g.board, shape, g.pieceX, g.pieceY + 1)) {
           g.pieceY++;
         } else {
-          lockPiece(g);
+          lockPiece(g, shape);
           newPiece();
         }
       }
@@ -974,10 +975,11 @@ function TetrisGame({ onBack }: { onBack: () => void }) {
     }
 
     // Current piece
+    const curPiece = getPiece(g.pieceIdx, g.rotation);
     if (!g.gameOver) {
-      for (let r = 0; r < g.piece.length; r++) {
-        for (let c = 0; c < g.piece[r].length; c++) {
-          if (g.piece[r][c]) {
+      for (let r = 0; r < curPiece.length; r++) {
+        for (let c = 0; c < curPiece[r].length; c++) {
+          if (curPiece[r][c]) {
             drawBrick(bx + (g.pieceX + c) * C, by + (g.pieceY + r) * C, 1);
           }
         }
@@ -1027,7 +1029,7 @@ function TetrisGame({ onBack }: { onBack: () => void }) {
       fb.set(rx + rw - 1, nby + y, 1); fb.set(rx + rw - 2, nby + y, 1);
     }
     // Next piece centered in box
-    const np = g.nextPiece;
+    const np = getPiece(g.nextIdx, 0);
     const npW = np[0].length * C;
     const npH = np.length * C;
     const npx = rx + Math.floor((rw - npW) / 2);
@@ -1073,10 +1075,10 @@ function collides(board: number[][], piece: number[][], px: number, py: number):
   return false;
 }
 
-function lockPiece(g: { board: number[][]; piece: number[][]; pieceX: number; pieceY: number; score: number; lines: number; level: number }) {
-  for (let r = 0; r < g.piece.length; r++) {
-    for (let c = 0; c < g.piece[r].length; c++) {
-      if (g.piece[r][c]) {
+function lockPiece(g: { board: number[][]; pieceX: number; pieceY: number; score: number; lines: number; level: number }, piece: number[][]) {
+  for (let r = 0; r < piece.length; r++) {
+    for (let c = 0; c < piece[r].length; c++) {
+      if (piece[r][c]) {
         const by = g.pieceY + r;
         const bx = g.pieceX + c;
         if (by >= 0 && by < 20 && bx >= 0 && bx < 10) {
