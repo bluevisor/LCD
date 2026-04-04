@@ -40,16 +40,16 @@ function ClearRect({ x, y, width, height, deps }: {
 
 function BootScreen({ onDone }: { onDone: () => void }) {
   const { engine, offsetX, offsetY } = useLCD();
-  const [textY, setTextY] = useState(-14);
+  const [textY, setTextY] = useState(-20);
   const targetY = Math.floor(H / 2) - 7;
 
   useEffect(() => {
     const id = setInterval(() => {
       setTextY(y => {
         if (y >= targetY) return targetY;
-        return y + 2;
+        return y + 12;
       });
-    }, 30);
+    }, 150);
     return () => clearInterval(id);
   }, [targetY]);
 
