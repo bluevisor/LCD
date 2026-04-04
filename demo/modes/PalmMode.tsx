@@ -302,13 +302,22 @@ const APP_CONTENT_H = CONTENT_H - HEADER_H; // 148 - 13 = 135
 
 // --- Date Book Screen (day view) ---
 
-const TIME_SLOTS = ["8:00", "9:00", "10:00", "11:00", "12:00", "1:00", "2:00", "3:00", "4:00", "5:00"];
+const TIME_SLOTS = [
+  "8:00", "9:00", "9:30", "10:00", "10:30",
+  "11:00", "12:00", "1:00", "2:00", "3:00",
+  "4:00", "5:00", "6:00",
+];
 const APPOINTMENTS: Record<number, string> = {
-  0: "Team standup",
-  2: "Design review",
-  4: "Lunch with Ada",
-  6: "Code review",
+  0: "Conference Call",
+  3: "VP Operations",
+  5: "Candidate interview",
+  6: "Racquetball",
+  7: "Lunch w/Larry",
+  10: "Staff Meeting",
+  12: "School Play",
 };
+
+const DOW_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 
 function DateBookScreen({ onHome }: { onHome: () => void }) {
   const [selected, setSelected] = useState(0);
@@ -317,9 +326,11 @@ function DateBookScreen({ onHome }: { onHome: () => void }) {
 
   useCancel(onHome);
 
-  const ROW_H = 12;
-  const DATE_HEADER_H = 12; // date row + divider
-  const visibleCount = Math.floor((APP_CONTENT_H - DATE_HEADER_H) / ROW_H);
+  const HEADER_H = 14;
+  const TOOLBAR_H = 12;
+  const ROW_H = 11;
+  const listAreaH = CONTENT_H - HEADER_H - TOOLBAR_H;
+  const visibleCount = Math.floor(listAreaH / ROW_H);
   const maxScroll = Math.max(0, TIME_SLOTS.length - visibleCount);
 
   const onUp = useCallback(() => {
@@ -344,7 +355,7 @@ function DateBookScreen({ onHome }: { onHome: () => void }) {
   }, [visibleCount, maxScroll]);
 
   useFocus({
-    rect: { x: offsetX, y: APP_CONTENT_Y + offsetY, width: W, height: APP_CONTENT_H },
+    rect: { x: offsetX, y: offsetY, width: W, height: CONTENT_H },
     order: 10,
     onUp, onDown,
   });
@@ -354,61 +365,89 @@ function DateBookScreen({ onHome }: { onHome: () => void }) {
     const ox = offsetX;
     const oy = offsetY;
 
-    fb.fillRect(ox, APP_CONTENT_Y + oy, W, APP_CONTENT_H, 0);
+    fb.fillRect(ox, oy, W, CONTENT_H, 0);
 
-    // Date header (centered)
-    const dateStr = formatPalmDate(new Date());
-    const dateW = font.measureText(dateStr);
-    const dateX = ox + Math.floor((W - dateW) / 2);
-    font.drawText(fb, dateStr, dateX, APP_CONTENT_Y + oy + 2, { intensity: 1 });
+    // Header bar: "Apr 10, 97  < S M T W T F S >"
+    // Date on left
+    const now = new Date();
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const dateStr = `${months[now.getMonth()]} ${now.getDate()}, ${String(now.getFullYear()).slice(2)}`;
+    font.drawText(fb, dateStr, ox + 2, oy + 3, { intensity: 1 });
 
-    // Navigation arrows
-    font.drawText(fb, "<", ox + 3, APP_CONTENT_Y + oy + 2, { intensity: 1 });
-    font.drawText(fb, ">", ox + W - 8, APP_CONTENT_Y + oy + 2, { intensity: 1 });
+    // Day-of-week bar on right with current day inverted
+    const dowStart = ox + 75;
+    const dowW = 10;
+    const currentDow = now.getDay();
+    font.drawText(fb, "<", ox + 68, oy + 3, { intensity: 1 });
+    for (let d = 0; d < 7; d++) {
+      const dx = dowStart + d * dowW;
+      if (d === currentDow) {
+        fb.fillRect(dx - 1, oy + 1, dowW, 10, 1);
+        font.drawText(fb, DOW_LABELS[d], dx + 1, oy + 3, { intensity: 0 });
+      } else {
+        // Box border
+        for (let i = 0; i < dowW; i++) { fb.set(dx - 1 + i, oy + 1, 0.6); fb.set(dx - 1 + i, oy + 10, 0.6); }
+        for (let i = 0; i < 10; i++) { fb.set(dx - 1, oy + 1 + i, 0.6); fb.set(dx - 1 + dowW - 1, oy + 1 + i, 0.6); }
+        font.drawText(fb, DOW_LABELS[d], dx + 1, oy + 3, { intensity: 1 });
+      }
+    }
+    font.drawText(fb, ">", ox + dowStart + 7 * dowW + 1, oy + 3, { intensity: 1 });
 
-    // Thin divider under date header
-    const divY = APP_CONTENT_Y + oy + 11;
-    for (let x = ox; x < ox + W; x++) fb.set(x, divY, 1);
+    // Divider under header
+    for (let x = ox; x < ox + W; x++) fb.set(x, oy + HEADER_H - 1, 1);
 
     // Time slots
-    const listY = APP_CONTENT_Y + oy + DATE_HEADER_H;
+    const listY = oy + HEADER_H;
     const visible = TIME_SLOTS.slice(scrollY, scrollY + visibleCount);
     visible.forEach((slot, i) => {
       const idx = scrollY + i;
       const rowY = listY + i * ROW_H;
 
       if (idx === selected) {
-        fb.fillRect(ox, rowY, W, ROW_H, 1);
+        fb.fillRect(ox, rowY, W, ROW_H - 1, 1);
       }
 
       const intensity = idx === selected ? 0 : 1;
 
+      // Time on left
       font.drawText(fb, slot, ox + 2, rowY + 2, { intensity });
 
-      const divX = ox + 30;
+      // Vertical divider after time
       if (idx !== selected) {
-        for (let dy = 0; dy < ROW_H; dy++) fb.set(divX, rowY + dy, 0.4);
+        for (let dy = 0; dy < ROW_H - 1; dy++) fb.set(ox + 30, rowY + dy, 0.5);
       }
 
+      // Appointment text
       const appt = APPOINTMENTS[idx];
       if (appt) {
-        font.drawText(fb, appt, ox + 34, rowY + 2, { intensity });
+        font.drawText(fb, appt, ox + 33, rowY + 2, { intensity });
       }
 
-      if (idx !== selected) {
-        for (let x = ox; x < ox + W; x++) fb.set(x, rowY + ROW_H - 1, 0.3);
+      // Dotted separator line
+      for (let x = ox; x < ox + W; x += 2) {
+        fb.set(x, rowY + ROW_H - 1, idx === selected ? 0 : 0.3);
       }
+    });
+
+    // Bottom toolbar: [New] [Details] [Go to]
+    const tbY = oy + CONTENT_H - TOOLBAR_H;
+    for (let x = ox; x < ox + W; x++) fb.set(x, tbY, 0.5);
+
+    const buttons = ["New", "Details", "Go to"];
+    let btnX = ox + 20;
+    buttons.forEach(label => {
+      const bw = font.measureText(label) + 6;
+      // Button border
+      for (let x = 0; x < bw; x++) { fb.set(btnX + x, tbY + 2, 1); fb.set(btnX + x, tbY + 10, 1); }
+      for (let y = 2; y <= 10; y++) { fb.set(btnX, tbY + y, 1); fb.set(btnX + bw - 1, tbY + y, 1); }
+      font.drawText(fb, label, btnX + 3, tbY + 3, { intensity: 1 });
+      btnX += bw + 4;
     });
 
     engine.markDirty();
   }, [engine, offsetX, offsetY, selected, scrollY, visibleCount, maxScroll]);
 
-  return (
-    <>
-      <AppHeader title="Date Book" />
-      <BottomStatusBar />
-    </>
-  );
+  return <BottomStatusBar />;
 }
 
 // --- Address Book Screen ---
