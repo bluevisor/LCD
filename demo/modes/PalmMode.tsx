@@ -1,9 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   LCDScreen,
-  LCDText,
-  LCDPanel,
-  LCDDivider,
   LCDIcon,
   BitmapFont,
   useLCD,
@@ -15,16 +12,17 @@ const font = new BitmapFont();
 
 const W = 160;
 const H = 160;
-const TITLE_H = 12;
-const BOTTOM_H = 14;
-const CONTENT_Y = TITLE_H + 1;
-const CONTENT_H = H - TITLE_H - 1 - BOTTOM_H - 1;
+const STATUS_H = 12;
+const CONTENT_Y = STATUS_H + 1;
+const CONTENT_H = H - STATUS_H - 1;
 
 const CAMERAS: string[] = ["straight", "isometric", "desk", "handheld"];
 const THEMES = ["green", "amber", "gray", "blue", "palm"];
 const PIXEL_SIZES = [2, 3, 4, 5, 6, 7, 8];
 
 type Screen = "home" | "datebook" | "address" | "todo" | "memo" | "calc" | "prefs";
+
+// --- Helpers ---
 
 function useCancel(onBack: () => void) {
   const { engine } = useLCD();
@@ -45,200 +43,204 @@ function ClearRect({ x, y, width, height, deps }: {
   return null;
 }
 
-// --- Title Bar ---
+// --- Status Bar ---
 
-function TitleBar({ title }: { title: string }) {
-  return (
-    <>
-      <LCDPanel x={0} y={0} width={W} height={TITLE_H} border={false}>
-        <LCDText x={3} y={2}>{title}</LCDText>
-      </LCDPanel>
-      <LCDDivider x={0} y={TITLE_H} length={W} />
-    </>
-  );
+function StatusBar({ title }: { title: string }) {
+  const { engine, offsetX, offsetY } = useLCD();
+
+  useEffect(() => {
+    const fb = engine.fb;
+    const ox = offsetX;
+    const oy = offsetY;
+
+    // Clear status area
+    fb.fillRect(ox, oy, W, STATUS_H, 0);
+
+    // Border around status bar
+    for (let x = 0; x < W; x++) {
+      fb.set(ox + x, oy, 1);
+      fb.set(ox + x, oy + STATUS_H - 1, 1);
+    }
+    for (let y = 0; y < STATUS_H; y++) {
+      fb.set(ox, oy + y, 1);
+      fb.set(ox + W - 1, oy + y, 1);
+    }
+
+    // Time on left
+    font.drawText(fb, "10:40 am", ox + 3, oy + 3, { intensity: 1 });
+
+    // Battery icon (small filled rectangles)
+    const batX = ox + 52;
+    const batY = oy + 4;
+    for (let i = 0; i < 3; i++) {
+      fb.fillRect(batX + i * 4, batY, 3, 4, 1);
+    }
+    // Empty segment
+    for (let bx = 0; bx < 3; bx++) {
+      fb.set(batX + 12 + bx, batY, 1);
+      fb.set(batX + 12 + bx, batY + 3, 1);
+    }
+    fb.set(batX + 12, batY + 1, 1);
+    fb.set(batX + 14, batY + 1, 1);
+    fb.set(batX + 12, batY + 2, 1);
+    fb.set(batX + 14, batY + 2, 1);
+
+    // Title/category on right
+    const catText = title;
+    const catW = font.measureText(catText);
+    font.drawText(fb, catText, ox + W - catW - 10, oy + 3, { intensity: 1 });
+
+    // Small triangle (▾)
+    const triX = ox + W - 7;
+    const triY = oy + 4;
+    fb.set(triX, triY, 1);
+    fb.set(triX + 1, triY, 1);
+    fb.set(triX + 2, triY, 1);
+    fb.set(triX + 3, triY, 1);
+    fb.set(triX + 4, triY, 1);
+    fb.set(triX + 1, triY + 1, 1);
+    fb.set(triX + 2, triY + 1, 1);
+    fb.set(triX + 3, triY + 1, 1);
+    fb.set(triX + 2, triY + 2, 1);
+
+    // Divider below status bar
+    for (let x = 0; x < W; x++) {
+      fb.set(ox + x, oy + STATUS_H, 1);
+    }
+
+    engine.markDirty();
+  }, [engine, offsetX, offsetY, title]);
+
+  return null;
 }
 
-// --- Bottom Bar (Silkscreen) ---
+// --- Home Screen (App Launcher) ---
 
-function BottomBar({ onHome }: { onHome: () => void }) {
-  const barY = H - BOTTOM_H;
-  const iconNames = ["home", "menu", "calculator", "magnifier"];
-  const spacing = W / 4;
-
-  return (
-    <>
-      <LCDDivider x={0} y={barY} length={W} />
-      {iconNames.map((name, i) => {
-        const iconX = Math.floor(spacing * i + spacing / 2 - 4);
-        const iconY = barY + 3;
-        return (
-          <BottomBarIcon
-            key={name}
-            x={iconX}
-            y={iconY}
-            name={name}
-            order={900 + i}
-            onActivate={name === "home" ? onHome : undefined}
-          />
-        );
-      })}
-    </>
-  );
-}
-
-function BottomBarIcon({ x, y, name, order, onActivate }: {
-  x: number; y: number; name: string; order: number; onActivate?: () => void;
-}) {
-  const { offsetX, offsetY } = useLCD();
-  useFocus({
-    rect: { x: x + offsetX, y: y + offsetY, width: 8, height: 8 },
-    order,
-    onActivate,
-  });
-  return <LCDIcon x={x} y={y} name={name} />;
-}
-
-// --- Home (App Launcher) ---
-
-interface AppIcon {
+interface AppItem {
   name: string;
   icon: string;
   screen: Screen;
 }
 
-const APP_ICONS: AppIcon[] = [
-  { name: "Date Book", icon: "calendar", screen: "datebook" },
+const APPS: AppItem[] = [
   { name: "Address", icon: "person", screen: "address" },
-  { name: "To Do", icon: "todo", screen: "todo" },
-  { name: "Memo", icon: "memo", screen: "memo" },
   { name: "Calc", icon: "calculator", screen: "calc" },
+  { name: "Date Book", icon: "calendar", screen: "datebook" },
+  { name: "Memo Pad", icon: "memo", screen: "memo" },
   { name: "Prefs", icon: "prefs", screen: "prefs" },
+  { name: "To Do", icon: "todo", screen: "todo" },
 ];
 
 const GRID_COLS = 3;
-const ICON_SCALE = 1;
-const ICON_PX = 8 * ICON_SCALE;
+const ICON_SCALE = 2;
+const ICON_PX = 8 * ICON_SCALE; // 16
 const CELL_W = Math.floor(W / GRID_COLS);
-const CELL_H = 24;
+const CELL_H = 32;
 const GRID_START_X = Math.floor((W - GRID_COLS * CELL_W) / 2);
-const GRID_START_Y = CONTENT_Y + 8;
+const GRID_START_Y = CONTENT_Y + 6;
 
 function HomeScreen({ onNavigate, onExit }: {
   onNavigate: (s: Screen) => void;
   onExit: () => void;
 }) {
   const [selected, setSelected] = useState(0);
-  const { offsetX, offsetY } = useLCD();
+  const { engine, offsetX, offsetY } = useLCD();
 
   useCancel(onExit);
 
-  const rows = Math.ceil(APP_ICONS.length / GRID_COLS);
+  const rows = Math.ceil(APPS.length / GRID_COLS);
 
   const onUp = useCallback(() => {
-    setSelected((s) => {
-      const row = Math.floor(s / GRID_COLS);
-      if (row <= 0) return s;
+    setSelected(s => {
+      if (Math.floor(s / GRID_COLS) <= 0) return s;
       return s - GRID_COLS;
     });
     return true;
   }, []);
 
   const onDown = useCallback(() => {
-    setSelected((s) => {
+    setSelected(s => {
       const next = s + GRID_COLS;
-      if (next >= APP_ICONS.length) return s;
+      if (next >= APPS.length) return s;
       return next;
     });
     return true;
   }, []);
 
   const onLeft = useCallback(() => {
-    setSelected((s) => (s > 0 ? s - 1 : s));
+    setSelected(s => (s > 0 ? s - 1 : s));
     return true;
   }, []);
 
   const onRight = useCallback(() => {
-    setSelected((s) => (s < APP_ICONS.length - 1 ? s + 1 : s));
+    setSelected(s => (s < APPS.length - 1 ? s + 1 : s));
     return true;
   }, []);
 
   const onActivate = useCallback(() => {
-    onNavigate(APP_ICONS[selected].screen);
+    onNavigate(APPS[selected].screen);
   }, [selected, onNavigate]);
 
   useFocus({
     rect: { x: offsetX, y: GRID_START_Y + offsetY, width: W, height: rows * CELL_H },
     order: 10,
-    onUp,
-    onDown,
-    onLeft,
-    onRight,
-    onActivate,
+    onUp, onDown, onLeft, onRight, onActivate,
   });
+
+  useEffect(() => {
+    const fb = engine.fb;
+    const ox = offsetX;
+    const oy = offsetY;
+
+    fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
+
+    APPS.forEach((app, i) => {
+      const col = i % GRID_COLS;
+      const row = Math.floor(i / GRID_COLS);
+      const cx = GRID_START_X + col * CELL_W + Math.floor(CELL_W / 2);
+      const cy = GRID_START_Y + row * CELL_H;
+      const isSel = i === selected;
+
+      // Inverted selection: fill black rect behind icon+label
+      if (isSel) {
+        const selX = cx - Math.floor(ICON_PX / 2) - 2;
+        const selY = cy - 1;
+        const selW = ICON_PX + 4;
+        const selH = ICON_PX + 12;
+        fb.fillRect(ox + selX, oy + selY, selW, selH, 1);
+      }
+
+      // Label
+      const labelW = font.measureText(app.name);
+      const labelX = cx - Math.floor(labelW / 2);
+      font.drawText(fb, app.name, ox + labelX, oy + cy + ICON_PX + 2, {
+        intensity: isSel ? 0 : 1,
+      });
+    });
+
+    engine.markDirty();
+  }, [engine, offsetX, offsetY, selected]);
 
   return (
     <>
-      <TitleBar title="Applications" />
-
-      {APP_ICONS.map((item, i) => {
+      <StatusBar title="All" />
+      {APPS.map((app, i) => {
         const col = i % GRID_COLS;
         const row = Math.floor(i / GRID_COLS);
         const cx = GRID_START_X + col * CELL_W + Math.floor(CELL_W / 2);
         const cy = GRID_START_Y + row * CELL_H;
         const iconX = cx - Math.floor(ICON_PX / 2);
-        const iconY = cy;
-        const labelW = font.measureText(item.name);
-        const labelX = cx - Math.floor(labelW / 2);
-        const isSel = i === selected;
-
         return (
-          <HomeIconCell
-            key={item.icon}
-            iconX={iconX}
-            iconY={iconY}
-            iconName={item.icon}
-            label={item.name}
-            labelX={labelX}
-            labelY={iconY + ICON_PX + 2}
-            selected={isSel}
+          <LCDIcon
+            key={app.icon}
+            x={iconX}
+            y={cy}
+            name={app.icon}
+            scale={ICON_SCALE}
+            intensity={i === selected ? 0 : 1}
           />
         );
       })}
-
-      <BottomBar onHome={() => {}} />
-    </>
-  );
-}
-
-function HomeIconCell({ iconX, iconY, iconName, label, labelX, labelY, selected }: {
-  iconX: number; iconY: number; iconName: string;
-  label: string; labelX: number; labelY: number;
-  selected: boolean;
-}) {
-  const { engine, offsetX, offsetY } = useLCD();
-
-  useEffect(() => {
-    const fb = engine.fb;
-    const ax = iconX + offsetX;
-    const ay = iconY + offsetY;
-    const bx = ax - 2;
-    const by = ay - 2;
-    const bw = ICON_PX + 4;
-    const bh = ICON_PX + 4;
-    if (selected) {
-      for (let i = 0; i < bw; i++) { fb.set(bx + i, by, 1); fb.set(bx + i, by + bh - 1, 1); }
-      for (let i = 1; i < bh - 1; i++) { fb.set(bx, by + i, 1); fb.set(bx + bw - 1, by + i, 1); }
-    } else {
-      for (let i = 0; i < bw; i++) { fb.set(bx + i, by, 0); fb.set(bx + i, by + bh - 1, 0); }
-      for (let i = 1; i < bh - 1; i++) { fb.set(bx, by + i, 0); fb.set(bx + bw - 1, by + i, 0); }
-    }
-    engine.markDirty();
-  }, [engine, offsetX, offsetY, iconX, iconY, selected]);
-
-  return (
-    <>
-      <LCDIcon x={iconX} y={iconY} name={iconName} scale={ICON_SCALE} intensity={1} />
-      <LCDText x={labelX} y={labelY}>{label}</LCDText>
     </>
   );
 }
@@ -246,12 +248,11 @@ function HomeIconCell({ iconX, iconY, iconName, label, labelX, labelY, selected 
 // --- Date Book Screen ---
 
 const TIME_SLOTS = ["8:00", "9:00", "10:00", "11:00", "12:00", "1:00", "2:00", "3:00", "4:00", "5:00"];
-
-const DATEBOOK_EVENTS: Record<string, string> = {
-  "9:00": "Team standup",
-  "12:00": "Lunch w/ Ada",
-  "2:00": "Design review",
-  "4:00": "Code freeze",
+const APPOINTMENTS: Record<number, string> = {
+  0: "Team standup",
+  2: "Design review",
+  4: "Lunch with Ada",
+  6: "Code review",
 };
 
 function DateBookScreen({ onHome }: { onHome: () => void }) {
@@ -261,25 +262,26 @@ function DateBookScreen({ onHome }: { onHome: () => void }) {
 
   useCancel(onHome);
 
-  const LINE_H = 12;
-  const visibleCount = Math.floor(CONTENT_H / LINE_H);
+  const ROW_H = 12;
+  const HEADER_H = 12;
+  const visibleCount = Math.floor((CONTENT_H - HEADER_H) / ROW_H);
   const maxScroll = Math.max(0, TIME_SLOTS.length - visibleCount);
 
   const onUp = useCallback(() => {
-    setSelected((s) => {
+    setSelected(s => {
       const next = Math.max(0, s - 1);
-      setScrollY((sc) => Math.min(sc, next));
+      setScrollY(sc => Math.min(sc, next));
       return next;
     });
     return true;
   }, []);
 
   const onDown = useCallback(() => {
-    setSelected((s) => {
+    setSelected(s => {
       const next = Math.min(TIME_SLOTS.length - 1, s + 1);
-      setScrollY((sc) => {
-        const minScroll = next - visibleCount + 1;
-        return Math.min(maxScroll, Math.max(sc, minScroll));
+      setScrollY(sc => {
+        const minSc = next - visibleCount + 1;
+        return Math.min(maxScroll, Math.max(sc, minSc));
       });
       return next;
     });
@@ -289,8 +291,7 @@ function DateBookScreen({ onHome }: { onHome: () => void }) {
   useFocus({
     rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
     order: 10,
-    onUp,
-    onDown,
+    onUp, onDown,
   });
 
   useEffect(() => {
@@ -301,104 +302,118 @@ function DateBookScreen({ onHome }: { onHome: () => void }) {
     fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
 
     // Date header
-    const dateStr = "Fri 04/04/26";
+    const dateStr = "Sat, Apr 4, 2026";
     const dateW = font.measureText(dateStr);
-    font.drawText(fb, dateStr, ox + Math.floor((W - dateW) / 2), CONTENT_Y + oy + 2, { intensity: 1 });
+    const dateX = ox + Math.floor((W - dateW) / 2);
+    font.drawText(fb, dateStr, dateX, CONTENT_Y + oy + 2, { intensity: 1 });
 
-    const listY = CONTENT_Y + 14;
-    const visible = TIME_SLOTS.slice(scrollY, scrollY + visibleCount - 1);
+    // Divider under date
+    const divY = CONTENT_Y + oy + HEADER_H - 1;
+    for (let x = ox; x < ox + W; x++) fb.set(x, divY, 1);
 
+    // Time slots
+    const listY = CONTENT_Y + oy + HEADER_H;
+    const visible = TIME_SLOTS.slice(scrollY, scrollY + visibleCount);
     visible.forEach((slot, i) => {
-      const itemIdx = scrollY + i;
-      const rowY = listY + oy + i * LINE_H;
+      const idx = scrollY + i;
+      const rowY = listY + i * ROW_H;
 
-      if (itemIdx === selected) {
-        fb.fillRect(ox + 1, rowY, W - 2, LINE_H - 1, 0.12);
+      if (idx === selected) {
+        fb.fillRect(ox, rowY, W, ROW_H, 1);
       }
 
-      font.drawText(fb, slot, ox + 3, rowY + 2, { intensity: 0.7 });
+      const intensity = idx === selected ? 0 : 1;
+      font.drawText(fb, slot, ox + 2, rowY + 2, { intensity });
 
-      // Vertical divider after time
-      const divX = ox + 30;
-      for (let dy = 0; dy < LINE_H - 1; dy++) fb.set(divX, rowY + dy, 0.3);
-
-      const event = DATEBOOK_EVENTS[slot];
-      if (event) {
-        font.drawText(fb, event, ox + 34, rowY + 2, { intensity: 1 });
+      const appt = APPOINTMENTS[idx];
+      if (appt) {
+        font.drawText(fb, appt, ox + 34, rowY + 2, { intensity });
       }
 
-      // Horizontal rule
-      for (let x = ox + 1; x < ox + W - 1; x++) fb.set(x, rowY + LINE_H - 1, 0.15);
+      // Row divider
+      if (idx !== selected) {
+        for (let x = ox; x < ox + W; x++) fb.set(x, rowY + ROW_H - 1, 0.3);
+      }
     });
 
     engine.markDirty();
-  }, [engine, offsetX, offsetY, selected, scrollY, visibleCount]);
+  }, [engine, offsetX, offsetY, selected, scrollY, visibleCount, maxScroll]);
 
-  return (
-    <>
-      <TitleBar title="Date Book" />
-      <BottomBar onHome={onHome} />
-    </>
-  );
+  return <StatusBar title="Date Book" />;
 }
 
 // --- Address Screen ---
 
-interface Contact {
-  name: string;
-  phone: string;
-  email: string;
+interface PalmContact {
+  lastName: string;
+  firstName: string;
+  work: string;
+  home: string;
+  address: string;
+  city: string;
 }
 
-const CONTACTS: Contact[] = [
-  { name: "Ada Lovelace", phone: "555-0101", email: "ada@engine.co" },
-  { name: "Alan Turing", phone: "555-0102", email: "alan@enigma.uk" },
-  { name: "Bob Kahn", phone: "555-0201", email: "bob@tcp.net" },
-  { name: "Claude Shannon", phone: "555-0301", email: "claude@info.io" },
-  { name: "Grace Hopper", phone: "555-0701", email: "grace@cobol.mil" },
-  { name: "Nikola Tesla", phone: "555-1401", email: "nikola@tesla.rs" },
+const ADDRESS_DATA: PalmContact[] = [
+  { lastName: "Hopper", firstName: "Grace", work: "555-0701", home: "555-0702", address: "3 Navy Blvd", city: "Arlington, VA" },
+  { lastName: "Kahn", firstName: "Bob", work: "555-0201", home: "555-0202", address: "9 Internet Ave", city: "Reston, VA" },
+  { lastName: "Lovelace", firstName: "Ada", work: "555-0101", home: "555-0102", address: "12 Math Lane", city: "London, UK" },
+  { lastName: "Ritchie", firstName: "Dennis", work: "555-0401", home: "555-0402", address: "4 Unix Way", city: "Murray Hill, NJ" },
+  { lastName: "Shannon", firstName: "Claude", work: "555-0301", home: "555-0302", address: "1 Bit Street", city: "Gaylord, MI" },
+  { lastName: "Tesla", firstName: "Nikola", work: "555-1401", home: "555-1402", address: "8 AC Current Pl", city: "New York, NY" },
+  { lastName: "Turing", firstName: "Alan", work: "555-0102", home: "555-0103", address: "7 Bletchley Rd", city: "London, UK" },
+  { lastName: "von Neumann", firstName: "John", work: "555-1001", home: "555-1002", address: "5 Logic Dr", city: "Princeton, NJ" },
 ];
+
+const CONTACT_ROW_H = 12;
 
 function AddressScreen({ onHome }: { onHome: () => void }) {
   const [selected, setSelected] = useState(0);
-  const [expanded, setExpanded] = useState(false);
+  const [detail, setDetail] = useState(false);
+  const [scrollY, setScrollY] = useState(0);
   const { engine, offsetX, offsetY } = useLCD();
 
+  const visibleCount = Math.floor(CONTENT_H / CONTACT_ROW_H);
+  const maxScroll = Math.max(0, ADDRESS_DATA.length - visibleCount);
+
   const onCancel = useCallback(() => {
-    if (expanded) {
-      setExpanded(false);
-    } else {
-      onHome();
-    }
-  }, [expanded, onHome]);
+    if (detail) setDetail(false);
+    else onHome();
+  }, [detail, onHome]);
 
   useCancel(onCancel);
 
-  const LINE_H = 12;
-
   const onUp = useCallback(() => {
-    if (expanded) return false;
-    setSelected(s => Math.max(0, s - 1));
+    if (detail) return false;
+    setSelected(s => {
+      const next = Math.max(0, s - 1);
+      setScrollY(sc => Math.min(sc, next));
+      return next;
+    });
     return true;
-  }, [expanded]);
+  }, [detail]);
 
   const onDown = useCallback(() => {
-    if (expanded) return false;
-    setSelected(s => Math.min(CONTACTS.length - 1, s + 1));
+    if (detail) return false;
+    setSelected(s => {
+      const next = Math.min(ADDRESS_DATA.length - 1, s + 1);
+      setScrollY(sc => {
+        const minSc = next - visibleCount + 1;
+        return Math.min(maxScroll, Math.max(sc, minSc));
+      });
+      return next;
+    });
     return true;
-  }, [expanded]);
+  }, [detail, visibleCount, maxScroll]);
 
   const onActivate = useCallback(() => {
-    setExpanded(e => !e);
+    setDetail(d => !d);
     return true;
   }, []);
 
   useFocus({
     rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
     order: 10,
-    onUp,
-    onDown,
-    onActivate,
+    onUp, onDown, onActivate,
   });
 
   useEffect(() => {
@@ -408,48 +423,53 @@ function AddressScreen({ onHome }: { onHome: () => void }) {
 
     fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
 
-    if (expanded) {
-      const contact = CONTACTS[selected];
-      let cy = CONTENT_Y + oy + 6;
+    if (detail) {
+      const c = ADDRESS_DATA[selected];
+      let cy = CONTENT_Y + oy + 4;
+      const cx = ox + 4;
 
-      font.drawText(fb, contact.name, ox + 4, cy, { intensity: 1 });
-      const nameW = font.measureText(contact.name);
-      for (let x = ox + 4; x < ox + 4 + nameW; x++) fb.set(x, cy + 7, 1);
-      cy += 16;
+      // Name underlined
+      const fullName = `${c.firstName} ${c.lastName}`;
+      font.drawText(fb, fullName, cx, cy, { intensity: 1 });
+      const nameW = font.measureText(fullName);
+      for (let x = cx; x < cx + nameW; x++) fb.set(x, cy + 7, 1);
+      cy += 14;
 
-      font.drawText(fb, `Tel: ${contact.phone}`, ox + 4, cy, { intensity: 0.8 });
+      font.drawText(fb, `Work: ${c.work}`, cx, cy, { intensity: 1 });
       cy += 12;
-      font.drawText(fb, `Mail: ${contact.email}`, ox + 4, cy, { intensity: 0.8 });
-
-      const hint = "Esc to go back";
-      const hintW = font.measureText(hint);
-      font.drawText(fb, hint, ox + Math.floor((W - hintW) / 2), CONTENT_Y + oy + CONTENT_H - 12, { intensity: 0.4 });
+      font.drawText(fb, `Home: ${c.home}`, cx, cy, { intensity: 1 });
+      cy += 12;
+      font.drawText(fb, `Addr: ${c.address}`, cx, cy, { intensity: 1 });
+      cy += 12;
+      font.drawText(fb, `City: ${c.city}`, cx, cy, { intensity: 1 });
     } else {
-      CONTACTS.forEach((contact, i) => {
-        const rowY = CONTENT_Y + oy + i * LINE_H;
+      const visible = ADDRESS_DATA.slice(scrollY, scrollY + visibleCount);
+      visible.forEach((c, i) => {
+        const idx = scrollY + i;
+        const rowY = CONTENT_Y + oy + i * CONTACT_ROW_H;
 
-        if (i === selected) {
-          fb.fillRect(ox + 1, rowY, W - 2, LINE_H - 1, 0.12);
+        if (idx === selected) {
+          fb.fillRect(ox, rowY, W, CONTACT_ROW_H, 1);
         }
 
-        font.drawText(fb, contact.name, ox + 4, rowY + 2, { intensity: 1 });
+        const intensity = idx === selected ? 0 : 1;
+        const displayName = `${c.lastName}, ${c.firstName}`;
+        font.drawText(fb, displayName, ox + 4, rowY + 2, { intensity });
 
-        for (let x = ox + 1; x < ox + W - 1; x++) fb.set(x, rowY + LINE_H - 1, 0.15);
+        // Row divider
+        if (idx !== selected) {
+          for (let x = ox; x < ox + W; x++) fb.set(x, rowY + CONTACT_ROW_H - 1, 0.3);
+        }
       });
     }
 
     engine.markDirty();
-  }, [engine, offsetX, offsetY, selected, expanded]);
+  }, [engine, offsetX, offsetY, selected, detail, scrollY, visibleCount, maxScroll]);
 
-  return (
-    <>
-      <TitleBar title="Address" />
-      <BottomBar onHome={onHome} />
-    </>
-  );
+  return <StatusBar title="Address" />;
 }
 
-// --- To Do Screen ---
+// --- To Do List Screen ---
 
 interface TodoItem {
   text: string;
@@ -457,44 +477,45 @@ interface TodoItem {
   checked: boolean;
 }
 
-const TODO_DATA: TodoItem[] = [
-  { text: "File expense report", priority: 1, checked: false },
-  { text: "Review PR #42", priority: 1, checked: true },
-  { text: "Update docs", priority: 2, checked: false },
-  { text: "Fix login bug", priority: 2, checked: false },
-  { text: "Order new cables", priority: 3, checked: true },
-  { text: "Clean desk", priority: 4, checked: false },
-  { text: "Backup database", priority: 3, checked: false },
-  { text: "Schedule 1:1s", priority: 5, checked: true },
+const TODO_INIT: TodoItem[] = [
+  { text: "Fix antenna", priority: 1, checked: false },
+  { text: "Buy stylus", priority: 2, checked: false },
+  { text: "Sync contacts", priority: 2, checked: false },
+  { text: "Update firmware", priority: 3, checked: false },
+  { text: "Clean screen", priority: 3, checked: false },
+  { text: "Read manual", priority: 4, checked: false },
+  { text: "Organize apps", priority: 4, checked: false },
+  { text: "Back up data", priority: 5, checked: false },
 ];
 
+const TODO_ROW_H = 12;
+
 function TodoScreen({ onHome }: { onHome: () => void }) {
-  const [items, setItems] = useState<TodoItem[]>(TODO_DATA.map(i => ({ ...i })));
+  const [items, setItems] = useState<TodoItem[]>(TODO_INIT.map(i => ({ ...i })));
   const [selected, setSelected] = useState(0);
   const [scrollY, setScrollY] = useState(0);
   const { engine, offsetX, offsetY } = useLCD();
 
   useCancel(onHome);
 
-  const LINE_H = 12;
-  const visibleCount = Math.floor(CONTENT_H / LINE_H);
+  const visibleCount = Math.floor(CONTENT_H / TODO_ROW_H);
   const maxScroll = Math.max(0, items.length - visibleCount);
 
   const onUp = useCallback(() => {
-    setSelected((s) => {
+    setSelected(s => {
       const next = Math.max(0, s - 1);
-      setScrollY((sc) => Math.min(sc, next));
+      setScrollY(sc => Math.min(sc, next));
       return next;
     });
     return true;
   }, []);
 
   const onDown = useCallback(() => {
-    setSelected((s) => {
+    setSelected(s => {
       const next = Math.min(items.length - 1, s + 1);
-      setScrollY((sc) => {
-        const minScroll = next - visibleCount + 1;
-        return Math.min(maxScroll, Math.max(sc, minScroll));
+      setScrollY(sc => {
+        const minSc = next - visibleCount + 1;
+        return Math.min(maxScroll, Math.max(sc, minSc));
       });
       return next;
     });
@@ -502,7 +523,7 @@ function TodoScreen({ onHome }: { onHome: () => void }) {
   }, [items.length, visibleCount, maxScroll]);
 
   const onActivate = useCallback(() => {
-    setItems((prev) => {
+    setItems(prev => {
       const next = [...prev];
       next[selected] = { ...next[selected], checked: !next[selected].checked };
       return next;
@@ -513,9 +534,7 @@ function TodoScreen({ onHome }: { onHome: () => void }) {
   useFocus({
     rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
     order: 10,
-    onUp,
-    onDown,
-    onActivate,
+    onUp, onDown, onActivate,
   });
 
   useEffect(() => {
@@ -527,122 +546,100 @@ function TodoScreen({ onHome }: { onHome: () => void }) {
 
     const visible = items.slice(scrollY, scrollY + visibleCount);
     visible.forEach((item, i) => {
-      const itemIdx = scrollY + i;
-      const rowY = CONTENT_Y + oy + i * LINE_H;
+      const idx = scrollY + i;
+      const rowY = CONTENT_Y + oy + i * TODO_ROW_H;
 
-      if (itemIdx === selected) {
-        fb.fillRect(ox + 1, rowY, W - 2, LINE_H - 1, 0.12);
+      if (idx === selected) {
+        fb.fillRect(ox, rowY, W, TODO_ROW_H, 1);
+      }
+
+      const intensity = idx === selected ? 0 : 1;
+
+      // Checkbox
+      const cbX = ox + 3;
+      const cbY = rowY + 2;
+      if (idx === selected) {
+        for (let bx = 0; bx < 7; bx++) { fb.set(cbX + bx, cbY, 0); fb.set(cbX + bx, cbY + 6, 0); }
+        for (let by = 0; by < 7; by++) { fb.set(cbX, cbY + by, 0); fb.set(cbX + 6, cbY + by, 0); }
+        if (item.checked) {
+          fb.fillRect(cbX + 2, cbY + 2, 3, 3, 0);
+        }
+      } else {
+        for (let bx = 0; bx < 7; bx++) { fb.set(cbX + bx, cbY, 1); fb.set(cbX + bx, cbY + 6, 1); }
+        for (let by = 0; by < 7; by++) { fb.set(cbX, cbY + by, 1); fb.set(cbX + 6, cbY + by, 1); }
+        if (item.checked) {
+          fb.fillRect(cbX + 2, cbY + 2, 3, 3, 1);
+        }
       }
 
       // Priority number
-      font.drawText(fb, String(item.priority), ox + 3, rowY + 2, { intensity: 0.6 });
-
-      // Checkbox
-      const cbX = ox + 12;
-      const cbY = rowY + 2;
-      for (let bx = 0; bx < 7; bx++) {
-        fb.set(cbX + bx, cbY, 1);
-        fb.set(cbX + bx, cbY + 6, 1);
-      }
-      for (let by = 0; by < 7; by++) {
-        fb.set(cbX, cbY + by, 1);
-        fb.set(cbX + 6, cbY + by, 1);
-      }
-      if (item.checked) {
-        fb.set(cbX + 2, cbY + 3, 1);
-        fb.set(cbX + 3, cbY + 4, 1);
-        fb.set(cbX + 4, cbY + 3, 1);
-        fb.set(cbX + 5, cbY + 2, 1);
-      }
+      font.drawText(fb, String(item.priority), ox + 13, rowY + 2, { intensity });
 
       // Text
-      font.drawText(fb, item.text, ox + 22, rowY + 2, { intensity: 1 });
+      font.drawText(fb, item.text, ox + 22, rowY + 2, { intensity });
 
-      // Rule
-      for (let x = ox + 1; x < ox + W - 1; x++) fb.set(x, rowY + LINE_H - 1, 0.15);
-    });
-
-    // Scrollbar
-    if (items.length > visibleCount) {
-      const barH = Math.max(4, Math.round(CONTENT_H * (visibleCount / items.length)));
-      const barY = CONTENT_Y + oy + Math.round((CONTENT_H - barH) * (scrollY / maxScroll));
-      for (let i = 0; i < barH; i++) {
-        fb.set(ox + W - 2, barY + i, 0.6);
+      // Row divider
+      if (idx !== selected) {
+        for (let x = ox; x < ox + W; x++) fb.set(x, rowY + TODO_ROW_H - 1, 0.3);
       }
-    }
+    });
 
     engine.markDirty();
   }, [engine, offsetX, offsetY, items, selected, scrollY, visibleCount, maxScroll]);
 
-  return (
-    <>
-      <TitleBar title="To Do" />
-      <BottomBar onHome={onHome} />
-    </>
-  );
+  return <StatusBar title="To Do List" />;
 }
 
-// --- Memo Screen ---
+// --- Memo Pad Screen ---
 
-const MEMO_DATA: string[] = [
-  "Meeting notes from Monday:\nDiscussed Q2 roadmap.\nAction items assigned.",
-  "Grocery list:\nMilk, eggs, bread,\nbutter, coffee beans",
-  "Book recommendations:\n- Neuromancer\n- Snow Crash\n- Diamond Age",
-  "WiFi: CoffeeShop5G\nPass: beans2024",
-  "Ideas for hackathon:\nLCD pixel UI library\nRetro PDA simulator",
+interface MemoItem {
+  title: string;
+  body: string;
+}
+
+const MEMOS: MemoItem[] = [
+  { title: "Meeting notes", body: "Discussed Q2 roadmap.\nAction items:\n- Update specs\n- Schedule review\n- Send summary" },
+  { title: "Shopping list", body: "Milk\nEggs\nBread\nButter\nCoffee\nFruit" },
+  { title: "Project ideas", body: "1. LCD emulator\n2. Retro PDA app\n3. Pixel font editor\n4. Palm theme pack" },
+  { title: "Books to read", body: "- Code (Petzold)\n- SICP\n- Design Patterns\n- Mythical Man-Month" },
+  { title: "Passwords (encrypted)", body: "[ENCRYPTED]\n\nUse HotSync to\ndecrypt on desktop." },
 ];
 
-function MemoScreen({ onHome }: { onHome: () => void }) {
+const MEMO_ROW_H = 12;
+
+function MemoPadScreen({ onHome }: { onHome: () => void }) {
   const [selected, setSelected] = useState(0);
   const [viewing, setViewing] = useState(false);
-  const [memoScroll, setMemoScroll] = useState(0);
   const { engine, offsetX, offsetY } = useLCD();
 
   const onCancel = useCallback(() => {
-    if (viewing) {
-      setViewing(false);
-      setMemoScroll(0);
-    } else {
-      onHome();
-    }
+    if (viewing) setViewing(false);
+    else onHome();
   }, [viewing, onHome]);
 
   useCancel(onCancel);
 
-  const LINE_H = 12;
-
   const onUp = useCallback(() => {
-    if (viewing) {
-      setMemoScroll(s => Math.max(0, s - 1));
-      return true;
-    }
+    if (viewing) return false;
     setSelected(s => Math.max(0, s - 1));
     return true;
   }, [viewing]);
 
   const onDown = useCallback(() => {
-    if (viewing) {
-      setMemoScroll(s => s + 1);
-      return true;
-    }
-    setSelected(s => Math.min(MEMO_DATA.length - 1, s + 1));
+    if (viewing) return false;
+    setSelected(s => Math.min(MEMOS.length - 1, s + 1));
     return true;
   }, [viewing]);
 
   const onActivate = useCallback(() => {
-    if (!viewing) {
-      setViewing(true);
-      setMemoScroll(0);
-    }
+    setViewing(v => !v);
     return true;
-  }, [viewing]);
+  }, []);
 
   useFocus({
     rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
     order: 10,
-    onUp,
-    onDown,
-    onActivate,
+    onUp, onDown, onActivate,
   });
 
   useEffect(() => {
@@ -653,46 +650,54 @@ function MemoScreen({ onHome }: { onHome: () => void }) {
     fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
 
     if (viewing) {
-      const memo = MEMO_DATA[selected];
-      const lines = memo.split("\n");
-      const visibleLines = lines.slice(memoScroll);
-      const maxLines = Math.floor(CONTENT_H / LINE_H);
+      const memo = MEMOS[selected];
+      let cy = CONTENT_Y + oy + 2;
 
-      visibleLines.slice(0, maxLines).forEach((line, i) => {
-        font.drawText(fb, line, ox + 4, CONTENT_Y + oy + 2 + i * LINE_H, { intensity: 1 });
-      });
+      // Title underlined
+      font.drawText(fb, memo.title, ox + 4, cy, { intensity: 1 });
+      const titleW = font.measureText(memo.title);
+      for (let x = ox + 4; x < ox + 4 + titleW; x++) fb.set(x, cy + 7, 1);
+      cy += 12;
+
+      // Divider
+      for (let x = ox; x < ox + W; x++) fb.set(x, cy, 0.4);
+      cy += 4;
+
+      // Body lines
+      const lines = memo.body.split("\n");
+      for (const line of lines) {
+        if (cy > CONTENT_Y + oy + CONTENT_H - 8) break;
+        font.drawText(fb, line, ox + 4, cy, { intensity: 1 });
+        cy += 10;
+      }
     } else {
-      MEMO_DATA.forEach((memo, i) => {
-        const rowY = CONTENT_Y + oy + i * LINE_H;
-        const firstLine = memo.split("\n")[0];
+      MEMOS.forEach((memo, i) => {
+        const rowY = CONTENT_Y + oy + i * MEMO_ROW_H;
 
         if (i === selected) {
-          fb.fillRect(ox + 1, rowY, W - 2, LINE_H - 1, 0.12);
+          fb.fillRect(ox, rowY, W, MEMO_ROW_H, 1);
         }
 
-        const displayText = firstLine.length > 22 ? firstLine.slice(0, 22) + ".." : firstLine;
-        font.drawText(fb, displayText, ox + 4, rowY + 2, { intensity: 1 });
+        const intensity = i === selected ? 0 : 1;
+        font.drawText(fb, `${i + 1}. ${memo.title}`, ox + 4, rowY + 2, { intensity });
 
-        for (let x = ox + 1; x < ox + W - 1; x++) fb.set(x, rowY + LINE_H - 1, 0.15);
+        if (i !== selected) {
+          for (let x = ox; x < ox + W; x++) fb.set(x, rowY + MEMO_ROW_H - 1, 0.3);
+        }
       });
     }
 
     engine.markDirty();
-  }, [engine, offsetX, offsetY, selected, viewing, memoScroll]);
+  }, [engine, offsetX, offsetY, selected, viewing]);
 
-  return (
-    <>
-      <TitleBar title="Memo Pad" />
-      <BottomBar onHome={onHome} />
-    </>
-  );
+  return <StatusBar title="Memo Pad" />;
 }
 
 // --- Calculator Screen ---
 
 const CALC_BUTTONS: string[][] = [
-  ["C", "±", "%", "÷"],
-  ["7", "8", "9", "×"],
+  ["C", "\u00b1", "%", "\u00f7"],
+  ["7", "8", "9", "\u00d7"],
   ["4", "5", "6", "-"],
   ["1", "2", "3", "+"],
   ["0", "", ".", "="],
@@ -701,7 +706,7 @@ const CALC_BUTTONS: string[][] = [
 const CALC_COLS = 4;
 const CALC_ROWS = 5;
 const CALC_BTN_W = Math.floor(W / CALC_COLS);
-const CALC_DISPLAY_H = 22;
+const CALC_DISPLAY_H = 24;
 const CALC_DIVIDER_Y = CONTENT_Y + CALC_DISPLAY_H;
 const CALC_GRID_Y = CALC_DIVIDER_Y + 1;
 const CALC_BTN_H = Math.floor((CONTENT_H - CALC_DISPLAY_H - 1) / CALC_ROWS);
@@ -717,10 +722,7 @@ function CalcScreen({ onHome }: { onHome: () => void }) {
 
   const onCancel = useCallback(() => {
     if (display !== "0" || operand !== null || operator !== null) {
-      setDisplay("0");
-      setOperand(null);
-      setOperator(null);
-      setResetNext(false);
+      setDisplay("0"); setOperand(null); setOperator(null); setResetNext(false);
     } else {
       onHome();
     }
@@ -730,21 +732,17 @@ function CalcScreen({ onHome }: { onHome: () => void }) {
 
   const pressButton = useCallback((label: string) => {
     if (label === "") return;
-
     if (label === "C") {
-      setDisplay("0"); setOperand(null); setOperator(null); setResetNext(false);
-      return;
+      setDisplay("0"); setOperand(null); setOperator(null); setResetNext(false); return;
     }
-    if (label === "±") {
-      setDisplay(d => String(-parseFloat(d)));
-      return;
+    if (label === "\u00b1") {
+      setDisplay(d => String(-parseFloat(d))); return;
     }
     if (label === "%") {
-      setDisplay(d => String(parseFloat(d) / 100));
-      return;
+      setDisplay(d => String(parseFloat(d) / 100)); return;
     }
-    if (label === "÷" || label === "×" || label === "-" || label === "+") {
-      const opMap: Record<string, string> = { "÷": "/", "×": "*", "-": "-", "+": "+" };
+    if (label === "\u00f7" || label === "\u00d7" || label === "-" || label === "+") {
+      const opMap: Record<string, string> = { "\u00f7": "/", "\u00d7": "*", "-": "-", "+": "+" };
       setOperand(parseFloat(display));
       setOperator(opMap[label]);
       setResetNext(true);
@@ -780,11 +778,6 @@ function CalcScreen({ onHome }: { onHome: () => void }) {
     });
   }, [display, operand, operator, resetNext]);
 
-  const getButtonAt = useCallback((row: number, col: number): string => {
-    if (row === 4 && col === 1) return "";
-    return CALC_BUTTONS[row][col];
-  }, []);
-
   const onUp = useCallback(() => { setSelRow(r => Math.max(0, r - 1)); return true; }, []);
   const onDown = useCallback(() => { setSelRow(r => Math.min(CALC_ROWS - 1, r + 1)); return true; }, []);
   const onLeft = useCallback(() => {
@@ -804,9 +797,11 @@ function CalcScreen({ onHome }: { onHome: () => void }) {
     return true;
   }, [selRow]);
   const onActivate = useCallback(() => {
-    pressButton(getButtonAt(selRow, selCol));
+    const label = CALC_BUTTONS[selRow][selCol];
+    if (selRow === 4 && selCol === 1) return true;
+    pressButton(label);
     return true;
-  }, [selRow, selCol, pressButton, getButtonAt]);
+  }, [selRow, selCol, pressButton]);
 
   useFocus({
     rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
@@ -828,15 +823,16 @@ function CalcScreen({ onHome }: { onHome: () => void }) {
     const textY = CONTENT_Y + oy + Math.floor((CALC_DISPLAY_H - 14) / 2);
     font.drawText(fb, displayText, textX, textY, { scale: 2, intensity: 1 });
 
+    // Operator indicator
     if (operator) {
-      const opDisplay: Record<string, string> = { "/": "÷", "*": "×", "-": "-", "+": "+" };
+      const opDisplay: Record<string, string> = { "/": "\u00f7", "*": "\u00d7", "-": "-", "+": "+" };
       font.drawText(fb, opDisplay[operator] || operator, ox + 4, textY, { intensity: 0.6 });
     }
 
-    // Divider
-    for (let x = ox; x < ox + W; x++) fb.set(x, CALC_DIVIDER_Y + oy, 0.5);
+    // Divider below display
+    for (let x = ox; x < ox + W; x++) fb.set(x, CALC_DIVIDER_Y + oy, 1);
 
-    // Buttons
+    // Button grid
     for (let row = 0; row < CALC_ROWS; row++) {
       for (let col = 0; col < CALC_COLS; col++) {
         const label = CALC_BUTTONS[row][col];
@@ -850,13 +846,14 @@ function CalcScreen({ onHome }: { onHome: () => void }) {
           col === selCol || (row === 4 && col === 0 && selCol <= 1)
         );
 
+        // Border
         for (let i = 0; i < btnW; i++) {
-          fb.set(bx + i, by, 0.3);
-          fb.set(bx + i, by + CALC_BTN_H - 1, 0.3);
+          fb.set(bx + i, by, 0.4);
+          fb.set(bx + i, by + CALC_BTN_H - 1, 0.4);
         }
         for (let i = 0; i < CALC_BTN_H; i++) {
-          fb.set(bx, by + i, 0.3);
-          fb.set(bx + btnW - 1, by + i, 0.3);
+          fb.set(bx, by + i, 0.4);
+          fb.set(bx + btnW - 1, by + i, 0.4);
         }
 
         if (isSel) {
@@ -875,12 +872,7 @@ function CalcScreen({ onHome }: { onHome: () => void }) {
     engine.markDirty();
   }, [engine, offsetX, offsetY, display, operator, selRow, selCol]);
 
-  return (
-    <>
-      <TitleBar title="Calculator" />
-      <BottomBar onHome={onHome} />
-    </>
-  );
+  return <StatusBar title="Calculator" />;
 }
 
 // --- Prefs Screen ---
@@ -902,8 +894,8 @@ function PrefsScreen({ onHome, theme, onThemeChange, camera, onCameraChange, pix
   useCancel(onHome);
 
   const ROW_COUNT = 4;
-  const ROW_SPACING = 16;
-  const FIRST_ROW_Y = CONTENT_Y + 8;
+  const ROW_SPACING = 14;
+  const FIRST_ROW_Y = CONTENT_Y + 6;
 
   const getLabel = (row: number) => ["Theme", "Camera", "Pixels", "Persp."][row];
   const getValue = (row: number): string => {
@@ -966,28 +958,23 @@ function PrefsScreen({ onHome, theme, onThemeChange, camera, onCameraChange, pix
       const label = getLabel(row);
       const value = `< ${getValue(row)} >`;
       const valueW = font.measureText(value);
-      const selected = row === selectedRow;
+      const isSel = row === selectedRow;
 
-      font.drawText(fb, label, ox + 4, rowY, { intensity: 1 });
-      font.drawText(fb, value, ox + W - valueW - 4, rowY, { intensity: selected ? 1 : 0.7 });
+      font.drawText(fb, label, ox + 6, rowY, { intensity: 1 });
+      font.drawText(fb, value, ox + W - valueW - 6, rowY, { intensity: isSel ? 1 : 0.6 });
     }
 
-    const noticeText = "Changes apply live";
-    const noticeW = font.measureText(noticeText);
-    const noticeY = FIRST_ROW_Y + ROW_COUNT * ROW_SPACING + 8 + oy;
-    const divY = noticeY - 4;
-    for (let x = ox; x < ox + W; x++) fb.set(x, divY, 0.3);
-    font.drawText(fb, noticeText, ox + Math.floor((W - noticeW) / 2), noticeY, { intensity: 0.5 });
+    // Divider + hint
+    const noticeY = FIRST_ROW_Y + ROW_COUNT * ROW_SPACING + 6 + oy;
+    for (let x = ox; x < ox + W; x++) fb.set(x, noticeY - 3, 0.3);
+    const hint = "Changes apply live";
+    const hintW = font.measureText(hint);
+    font.drawText(fb, hint, ox + Math.floor((W - hintW) / 2), noticeY, { intensity: 0.5 });
 
     engine.markDirty();
   }, [engine, offsetX, offsetY, selectedRow, theme, camera, pixelSize, perspective]);
 
-  return (
-    <>
-      <TitleBar title="Preferences" />
-      <BottomBar onHome={onHome} />
-    </>
-  );
+  return <StatusBar title="Preferences" />;
 }
 
 // --- Main Palm Mode ---
@@ -1004,21 +991,21 @@ export function PalmMode({ onExit }: { onExit: () => void }) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "-" || e.key === "_") {
-        setPixelSize((s) => Math.max(2, s - 1));
+        setPixelSize(s => Math.max(2, s - 1));
       } else if (e.key === "=" || e.key === "+") {
-        setPixelSize((s) => Math.min(8, s + 1));
+        setPixelSize(s => Math.min(8, s + 1));
       } else if (e.key === "," || e.key === "<") {
-        setCamera((c) => {
+        setCamera(c => {
           const idx = CAMERAS.indexOf(c);
           return CAMERAS[(idx - 1 + CAMERAS.length) % CAMERAS.length];
         });
       } else if (e.key === "." || e.key === ">") {
-        setCamera((c) => {
+        setCamera(c => {
           const idx = CAMERAS.indexOf(c);
           return CAMERAS[(idx + 1) % CAMERAS.length];
         });
       } else if (e.key === "\\") {
-        setPerspective((p) => !p);
+        setPerspective(p => !p);
       }
     };
     window.addEventListener("keydown", handler);
@@ -1042,7 +1029,7 @@ export function PalmMode({ onExit }: { onExit: () => void }) {
         {screen === "datebook" && <DateBookScreen onHome={goHome} />}
         {screen === "address" && <AddressScreen onHome={goHome} />}
         {screen === "todo" && <TodoScreen onHome={goHome} />}
-        {screen === "memo" && <MemoScreen onHome={goHome} />}
+        {screen === "memo" && <MemoPadScreen onHome={goHome} />}
         {screen === "calc" && <CalcScreen onHome={goHome} />}
         {screen === "prefs" && <PrefsScreen onHome={goHome} theme={theme} onThemeChange={setTheme} camera={camera} onCameraChange={setCamera} pixelSize={pixelSize} onPixelSizeChange={setPixelSize} perspective={perspective} onPerspectiveChange={setPerspective} />}
       </LCDScreen>
