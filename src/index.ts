@@ -17,6 +17,7 @@ export type { ThemePresetName } from "./themes/presets";
 
 // Fonts
 export { BitmapFont } from "./fonts/bitmap-font";
+export type { FontSize } from "./fonts/bitmap-font";
 
 // Assets
 export { sampleImageToFramebuffer } from "./assets/image-sampler";
