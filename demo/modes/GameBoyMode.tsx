@@ -40,22 +40,25 @@ function ClearRect({ x, y, width, height, deps }: {
 
 function BootScreen({ onDone }: { onDone: () => void }) {
   const { engine, offsetX, offsetY } = useLCD();
-  const [lineY, setLineY] = useState(0);
-
-  useEffect(() => {
-    const timer = setTimeout(onDone, 2000);
-    return () => clearTimeout(timer);
-  }, [onDone]);
+  const [textY, setTextY] = useState(-14);
+  const targetY = Math.floor(H / 2) - 7;
 
   useEffect(() => {
     const id = setInterval(() => {
-      setLineY(y => {
-        if (y >= H) return H;
+      setTextY(y => {
+        if (y >= targetY) return targetY;
         return y + 2;
       });
-    }, 28);
+    }, 30);
     return () => clearInterval(id);
-  }, []);
+  }, [targetY]);
+
+  useEffect(() => {
+    if (textY >= targetY) {
+      const timer = setTimeout(onDone, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [textY, targetY, onDone]);
 
   useEffect(() => {
     const fb = engine.fb;
@@ -63,22 +66,25 @@ function BootScreen({ onDone }: { onDone: () => void }) {
     const oy = offsetY;
     fb.fillRect(ox, oy, W, H, 0);
 
-    // "GAME BOY" centered, scale 2 → each char ~12px wide, 8 chars + spaces ≈ 96px
     const text = "GAME BOY";
-    const tw = font.measureText(text) * 2;
+    const scale = 2;
+    const tw = font.measureText(text, scale);
     const tx = ox + Math.floor((W - tw) / 2);
-    const ty = oy + Math.floor(H / 2) - 7;
-    font.drawText(fb, text, tx, ty, { intensity: 1, scale: 2 });
+    const ty = oy + textY;
 
-    // scrolling line
-    if (lineY < H) {
-      for (let x = 0; x < W; x++) {
-        fb.set(ox + x, oy + lineY, 1);
-      }
-    }
+    // Draw twice offset by 1px for bold effect
+    font.drawText(fb, text, tx, ty, { intensity: 1, scale });
+    font.drawText(fb, text, tx + 1, ty, { intensity: 1, scale });
+
+    // Registered trademark symbol (small dot pattern after text)
+    const tmX = tx + tw + 3;
+    const tmY = ty;
+    fb.set(tmX, tmY, 0.6);
+    fb.set(tmX + 1, tmY, 0.6);
+    fb.set(tmX, tmY + 1, 0.6);
 
     engine.markDirty();
-  }, [engine, offsetX, offsetY, lineY]);
+  }, [engine, offsetX, offsetY, textY]);
 
   return null;
 }
