@@ -13,7 +13,7 @@ const W = 160;
 const H = 144;
 const CAMERAS: string[] = ["straight", "isometric", "desk", "handheld"];
 
-type Screen = "boot" | "menu" | "snake" | "pong" | "breakout" | "tetris" | "settings";
+type Screen = "boot" | "menu" | "snake" | "pong" | "breakout" | "tetris" | "tetris-title" | "settings";
 
 /* ── helpers ─────────────────────────────────────────────── */
 
@@ -95,7 +95,7 @@ function MenuScreen({ onSelect, onExit }: { onSelect: (s: Screen) => void; onExi
   const { engine, offsetX, offsetY } = useLCD();
   const [selected, setSelected] = useState(0);
   const items: { label: string; screen: Screen | "exit" }[] = [
-    { label: "Tetris", screen: "tetris" },
+    { label: "Tetris", screen: "tetris-title" },
     { label: "Snake", screen: "snake" },
     { label: "Pong", screen: "pong" },
     { label: "Breakout", screen: "breakout" },
@@ -136,12 +136,12 @@ function MenuScreen({ onSelect, onExit }: { onSelect: (s: Screen) => void; onExi
     fb.fillRect(ox, oy, W, H, 0);
 
     const title = "SELECT GAME";
-    const tw = font.measureText(title) * 2;
-    font.drawText(fb, title, ox + Math.floor((W - tw) / 2), oy + 10, { intensity: 1, scale: 2 });
+    const tw = font.measureText(title, 2);
+    font.drawText(fb, title, ox + Math.floor((W - tw) / 2), oy + 8, { intensity: 1, scale: 2 });
 
     items.forEach((item, i) => {
       const marker = i === selected ? "> " : "  ";
-      font.drawText(fb, marker + item.label, ox + 30, oy + 45 + i * 20, { intensity: i === selected ? 1 : 0.5, scale: 2 });
+      font.drawText(fb, marker + item.label, ox + 30, oy + 32 + i * 14, { intensity: i === selected ? 1 : 0.5, scale: 1 });
     });
 
     font.drawText(fb, "ESC:Back  ENTER:Select", ox + 10, oy + H - 12, { intensity: 0.4 });
@@ -650,6 +650,98 @@ function BreakoutGame({ onBack }: { onBack: () => void }) {
   return null;
 }
 
+/* ── Tetris Title Screen ─────────────────────────────────── */
+
+function TetrisTitleScreen({ onStart, onSettings, onBack }: {
+  onStart: () => void;
+  onSettings: () => void;
+  onBack: () => void;
+}) {
+  const { engine, offsetX, offsetY } = useLCD();
+  const [selected, setSelected] = useState(0);
+
+  useCancel(onBack);
+
+  const onUp = useCallback(() => { setSelected(s => Math.max(0, s - 1)); return true; }, []);
+  const onDown = useCallback(() => { setSelected(s => Math.min(1, s + 1)); return true; }, []);
+  const onActivate = useCallback(() => {
+    if (selected === 0) onStart();
+    else onSettings();
+  }, [selected, onStart, onSettings]);
+
+  useFocus({
+    rect: { x: offsetX, y: offsetY, width: W, height: H },
+    order: 10,
+    onUp,
+    onDown,
+    onActivate,
+  });
+
+  useEffect(() => {
+    const fb = engine.fb;
+    const ox = offsetX;
+    const oy = offsetY;
+    fb.fillRect(ox, oy, W, H, 0);
+
+    // "TETRIS" bold title — draw twice offset by 1px
+    const title = "TETRIS";
+    const tw = font.measureText(title, 2);
+    const tx = ox + Math.floor((W - tw) / 2);
+    const ty = oy + 15;
+    font.drawText(fb, title, tx + 1, ty, { intensity: 1, scale: 2 });
+    font.drawText(fb, title, tx, ty, { intensity: 1, scale: 2 });
+
+    // "TM" small superscript after title
+    font.drawText(fb, "TM", ox + Math.floor((W + tw) / 2) + 3, ty, { intensity: 0.7, scale: 1 });
+
+    // Skyline silhouette — bottom third (y ~ 85 to 110)
+    const skyY = oy + 85;
+    // Buildings: filled rectangles of varying heights
+    const buildings = [
+      { x: 5,  w: 12, h: 22 },
+      { x: 19, w: 8,  h: 14 },
+      { x: 29, w: 14, h: 30 },
+      { x: 45, w: 6,  h: 18 },
+      { x: 53, w: 10, h: 25 },
+      { x: 65, w: 8,  h: 12 },
+      { x: 75, w: 16, h: 28 },
+      { x: 93, w: 10, h: 20 },
+      { x: 105,w: 12, h: 15 },
+      { x: 119,w: 8,  h: 22 },
+      { x: 129,w: 14, h: 18 },
+      { x: 145,w: 12, h: 26 },
+    ];
+    for (const b of buildings) {
+      fb.fillRect(ox + b.x, skyY - b.h, b.w, b.h, 1);
+      // Windows — small dark squares
+      for (let wy = skyY - b.h + 3; wy < skyY - 3; wy += 5) {
+        for (let wx = ox + b.x + 2; wx < ox + b.x + b.w - 2; wx += 4) {
+          fb.fillRect(wx, wy, 2, 2, 0);
+        }
+      }
+    }
+    // Ground line
+    fb.fillRect(ox, skyY, W, 2, 1);
+
+    // Menu options
+    const optY = oy + 100;
+    const opts = ["Start", "Settings"];
+    opts.forEach((opt, i) => {
+      const marker = i === selected ? "> " : "  ";
+      font.drawText(fb, marker + opt, ox + 45, optY + i * 14, { intensity: i === selected ? 1 : 0.5 });
+    });
+
+    // Copyright line
+    const copy = "c1989  Game Boy";
+    const cw = font.measureText(copy);
+    font.drawText(fb, copy, ox + Math.floor((W - cw) / 2), oy + H - 10, { intensity: 0.5 });
+
+    engine.markDirty();
+  }, [engine, offsetX, offsetY, selected]);
+
+  return null;
+}
+
 /* ── Tetris ──────────────────────────────────────────────── */
 
 const TETRO: number[][][] = [
@@ -679,6 +771,7 @@ function rotateShape(shape: number[][]): number[][] {
 function TetrisGame({ onBack }: { onBack: () => void }) {
   const { engine, offsetX, offsetY } = useLCD();
   const [frame, setFrame] = useState(0);
+  const keysRef = useRef(new Set<string>());
 
   const CELL = 4;
   const BOARD_W = 10;
@@ -725,7 +818,16 @@ function TetrisGame({ onBack }: { onBack: () => void }) {
 
   useCancel(onBack);
 
-  // Key input
+  // Track held keys for fast repeat
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => { keysRef.current.add(e.key); };
+    const up = (e: KeyboardEvent) => { keysRef.current.delete(e.key); };
+    engine.addKeyListener(down);
+    window.addEventListener("keyup", up);
+    return () => { engine.removeKeyListener(down); window.removeEventListener("keyup", up); };
+  }, [engine]);
+
+  // Key input — rotation and hard drop only (no repeat)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const g = gameRef.current;
@@ -733,13 +835,7 @@ function TetrisGame({ onBack }: { onBack: () => void }) {
         if (e.key === "Enter") resetGame();
         return;
       }
-      if (e.key === "ArrowLeft") {
-        if (!collides(g.board, g.piece, g.pieceX - 1, g.pieceY)) g.pieceX--;
-      } else if (e.key === "ArrowRight") {
-        if (!collides(g.board, g.piece, g.pieceX + 1, g.pieceY)) g.pieceX++;
-      } else if (e.key === "ArrowDown") {
-        if (!collides(g.board, g.piece, g.pieceX, g.pieceY + 1)) g.pieceY++;
-      } else if (e.key === "ArrowUp" || e.key === "z" || e.key === "x") {
+      if (e.key === "ArrowUp" || e.key === "z" || e.key === "x") {
         const rotated = rotateShape(g.piece);
         if (!collides(g.board, rotated, g.pieceX, g.pieceY)) {
           g.piece = rotated;
@@ -750,6 +846,7 @@ function TetrisGame({ onBack }: { onBack: () => void }) {
           g.piece = rotated;
           g.pieceX++;
         }
+        setFrame(f => f + 1);
       } else if (e.key === " ") {
         // Hard drop
         while (!collides(g.board, g.piece, g.pieceX, g.pieceY + 1)) {
@@ -765,10 +862,21 @@ function TetrisGame({ onBack }: { onBack: () => void }) {
   }, [engine, resetGame, newPiece]);
 
   // Game loop
+  const tickRef = useRef(0);
   useEffect(() => {
     const id = setInterval(() => {
       const g = gameRef.current;
       if (g.gameOver) return;
+
+      // Fast key repeat every 3 ticks (~150ms)
+      tickRef.current++;
+      if (tickRef.current % 3 === 0) {
+        const keys = keysRef.current;
+        if (keys.has("ArrowLeft") && !collides(g.board, g.piece, g.pieceX - 1, g.pieceY)) g.pieceX--;
+        if (keys.has("ArrowRight") && !collides(g.board, g.piece, g.pieceX + 1, g.pieceY)) g.pieceX++;
+        if (keys.has("ArrowDown") && !collides(g.board, g.piece, g.pieceX, g.pieceY + 1)) g.pieceY++;
+      }
+
       g.dropCounter++;
       const speed = Math.max(2, 10 - g.level);
       if (g.dropCounter >= speed) {
@@ -1103,7 +1211,14 @@ export function GameBoyMode({ onExit }: { onExit: () => void }) {
 
         {screen === "boot" && <BootScreen onDone={goMenu} />}
         {screen === "menu" && <MenuScreen onSelect={setScreen} onExit={onExit} />}
-        {screen === "tetris" && <TetrisGame onBack={goMenu} />}
+        {screen === "tetris-title" && (
+          <TetrisTitleScreen
+            onStart={() => setScreen("tetris")}
+            onSettings={() => setScreen("settings")}
+            onBack={goMenu}
+          />
+        )}
+        {screen === "tetris" && <TetrisGame onBack={() => setScreen("tetris-title")} />}
         {screen === "snake" && <SnakeGame onBack={goMenu} />}
         {screen === "pong" && <PongGame onBack={goMenu} />}
         {screen === "breakout" && <BreakoutGame onBack={goMenu} />}
