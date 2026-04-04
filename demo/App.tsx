@@ -9,12 +9,10 @@ import { TamagotchiMode } from "./modes/TamagotchiMode";
 import { PagerMode } from "./modes/PagerMode";
 import {
   LCDScreen,
-  LCDText,
-  LCDDivider,
-  LCDMenu,
   BitmapFont,
   useLCD,
   useFocus,
+  type ThemePresetName,
 } from "../src";
 
 type Mode = "picker" | "nokia" | "nokia9210" | "newton" | "palm" | "blackberry" | "gameboy" | "tamagotchi" | "pager";
@@ -30,18 +28,13 @@ const MODES: { key: Mode; label: string; detail: string }[] = [
   { key: "nokia9210", label: "Nokia 9210", detail: "320x100  2001" },
 ];
 
+const CAMERAS: string[] = ["straight", "isometric", "desk", "handheld"];
+const THEMES: ThemePresetName[] = ["green", "amber", "gray", "blue", "newton", "palm", "gameboy", "tamagotchi", "pager"];
+
 const font = new BitmapFont();
 
 const W = 200;
 const H = 140;
-
-function useCancel(onBack: () => void) {
-  const { engine } = useLCD();
-  useEffect(() => {
-    engine.focus.onCancel(onBack);
-    return () => engine.focus.offCancel(onBack);
-  }, [engine, onBack]);
-}
 
 function PickerContent({ onSelect, selected, setSelected }: {
   onSelect: (mode: Mode) => void;
@@ -53,12 +46,12 @@ function PickerContent({ onSelect, selected, setSelected }: {
   const onUp = useCallback(() => {
     if (selected > 0) { setSelected(selected - 1); return true; }
     return false;
-  }, [selected]);
+  }, [selected, setSelected]);
 
   const onDown = useCallback(() => {
     if (selected < MODES.length - 1) { setSelected(selected + 1); return true; }
     return false;
-  }, [selected]);
+  }, [selected, setSelected]);
 
   const onActivate = useCallback(() => {
     onSelect(MODES[selected].key);
@@ -77,21 +70,17 @@ function PickerContent({ onSelect, selected, setSelected }: {
     const ox = offsetX;
     const oy = offsetY;
 
-    // Title
     fb.fillRect(ox, oy, W, H, 0);
     const title = "LCD Device Museum";
     const tw = font.measureText(title);
     font.drawText(fb, title, ox + Math.floor((W - tw) / 2), oy + 3, { intensity: 1 });
 
-    // Divider
     for (let x = ox + 4; x < ox + W - 4; x++) fb.set(x, oy + 12, 0.5);
 
-    // Subtitle
     const sub = "Select a device";
     const sw = font.measureText(sub);
     font.drawText(fb, sub, ox + Math.floor((W - sw) / 2), oy + 15, { intensity: 0.5 });
 
-    // Device list
     const listY = oy + 26;
     const itemH = 12;
 
@@ -109,7 +98,6 @@ function PickerContent({ onSelect, selected, setSelected }: {
         font.drawText(fb, m.detail, ox + W - 6 - dw, y + 1, { intensity: 0.4 });
       }
 
-      // Divider between items
       if (i < MODES.length - 1) {
         for (let x = ox + 4; x < ox + W - 4; x++) {
           fb.set(x, y + itemH - 2, 0.15);
@@ -117,8 +105,7 @@ function PickerContent({ onSelect, selected, setSelected }: {
       }
     });
 
-    // Footer
-    const footer = "Enter to select  Esc to exit";
+    const footer = "-/+ size  ,/. angle  \\ persp";
     const fw = font.measureText(footer);
     font.drawText(fb, footer, ox + Math.floor((W - fw) / 2), oy + H - 9, { intensity: 0.3 });
 
@@ -128,42 +115,26 @@ function PickerContent({ onSelect, selected, setSelected }: {
   return null;
 }
 
-function ModePicker({ onSelect, selected, setSelected }: {
+function ModePicker({ onSelect, selected, setSelected, theme, camera, pixelSize, perspective }: {
   onSelect: (mode: Mode) => void;
   selected: number;
   setSelected: (i: number) => void;
+  theme: ThemePresetName;
+  camera: string;
+  pixelSize: number;
+  perspective: boolean;
 }) {
-  // Calculate pixel size to fill viewport
-  const [pixelSize, setPixelSize] = useState(4);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const resize = () => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const scaleX = Math.floor(vw / W);
-      const scaleY = Math.floor(vh / H);
-      setPixelSize(Math.max(2, Math.min(scaleX, scaleY) - 1));
-    };
-    resize();
-    window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
-  }, []);
-
   return (
-    <div
-      ref={containerRef}
-      style={{
-        width: "100vw",
-        height: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#111",
-        overflow: "hidden",
-      }}
-    >
-      <LCDScreen width={W} height={H} pixelSize={pixelSize} theme="green">
+    <div style={{
+      width: "100vw",
+      height: "100vh",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "#111",
+      overflow: "hidden",
+    }}>
+      <LCDScreen width={W} height={H} pixelSize={pixelSize} theme={theme} camera={camera} perspective={perspective}>
         <PickerContent onSelect={onSelect} selected={selected} setSelected={setSelected} />
       </LCDScreen>
     </div>
@@ -173,6 +144,46 @@ function ModePicker({ onSelect, selected, setSelected }: {
 export default function App() {
   const [mode, setMode] = useState<Mode>("picker");
   const [pickerIdx, setPickerIdx] = useState(0);
+  const [theme, setTheme] = useState<ThemePresetName>("green");
+  const [camera, setCamera] = useState("straight");
+  const [pixelSize, setPixelSize] = useState(4);
+  const [perspective, setPerspective] = useState(false);
+
+  // Shared hotkeys active on picker screen
+  useEffect(() => {
+    if (mode !== "picker") return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "-" || e.key === "_") {
+        setPixelSize(s => Math.max(2, s - 1));
+      } else if (e.key === "=" || e.key === "+") {
+        setPixelSize(s => Math.min(12, s + 1));
+      } else if (e.key === "," || e.key === "<") {
+        setCamera(c => {
+          const idx = CAMERAS.indexOf(c);
+          return CAMERAS[(idx - 1 + CAMERAS.length) % CAMERAS.length];
+        });
+      } else if (e.key === "." || e.key === ">") {
+        setCamera(c => {
+          const idx = CAMERAS.indexOf(c);
+          return CAMERAS[(idx + 1) % CAMERAS.length];
+        });
+      } else if (e.key === "\\") {
+        setPerspective(p => !p);
+      } else if (e.key === "[") {
+        setTheme(t => {
+          const idx = THEMES.indexOf(t);
+          return THEMES[(idx - 1 + THEMES.length) % THEMES.length];
+        });
+      } else if (e.key === "]") {
+        setTheme(t => {
+          const idx = THEMES.indexOf(t);
+          return THEMES[(idx + 1) % THEMES.length];
+        });
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [mode]);
 
   if (mode === "nokia") return <NokiaMode onExit={() => setMode("picker")} />;
   if (mode === "newton") return <NewtonMode onExit={() => setMode("picker")} />;
@@ -182,5 +193,15 @@ export default function App() {
   if (mode === "gameboy") return <GameBoyMode onExit={() => setMode("picker")} />;
   if (mode === "tamagotchi") return <TamagotchiMode onExit={() => setMode("picker")} />;
   if (mode === "pager") return <PagerMode onExit={() => setMode("picker")} />;
-  return <ModePicker onSelect={setMode} selected={pickerIdx} setSelected={setPickerIdx} />;
+  return (
+    <ModePicker
+      onSelect={setMode}
+      selected={pickerIdx}
+      setSelected={setPickerIdx}
+      theme={theme}
+      camera={camera}
+      pixelSize={pixelSize}
+      perspective={perspective}
+    />
+  );
 }
