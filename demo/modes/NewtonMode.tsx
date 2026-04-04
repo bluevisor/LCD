@@ -719,6 +719,231 @@ function DatesScreen({ onExtras }: {
   );
 }
 
+// --- Calc Screen ---
+
+const CALC_BUTTONS: string[][] = [
+  ["C", "±", "%", "÷"],
+  ["7", "8", "9", "×"],
+  ["4", "5", "6", "-"],
+  ["1", "2", "3", "+"],
+  ["0", "", ".", "="],
+];
+
+const CALC_COLS = 4;
+const CALC_ROWS = 5;
+const CALC_BTN_W = Math.floor((W) / CALC_COLS);
+const CALC_DISPLAY_H = 28;
+const CALC_DIVIDER_Y = CONTENT_Y + CALC_DISPLAY_H;
+const CALC_GRID_Y = CALC_DIVIDER_Y + 1;
+const CALC_BTN_H = Math.floor((CONTENT_H - CALC_DISPLAY_H - 1) / CALC_ROWS);
+
+function CalcScreen({ onExtras }: { onExtras: () => void }) {
+  const [display, setDisplay] = useState("0");
+  const [operand, setOperand] = useState<number | null>(null);
+  const [operator, setOperator] = useState<string | null>(null);
+  const [resetNext, setResetNext] = useState(false);
+  const [selRow, setSelRow] = useState(0);
+  const [selCol, setSelCol] = useState(0);
+  const { engine, offsetX, offsetY } = useLCD();
+
+  const onCancel = useCallback(() => {
+    if (display !== "0" || operand !== null || operator !== null) {
+      setDisplay("0");
+      setOperand(null);
+      setOperator(null);
+      setResetNext(false);
+    } else {
+      onExtras();
+    }
+  }, [display, operand, operator, onExtras]);
+
+  useCancel(onCancel);
+
+  const pressButton = useCallback((label: string) => {
+    if (label === "") return;
+
+    if (label === "C") {
+      setDisplay("0");
+      setOperand(null);
+      setOperator(null);
+      setResetNext(false);
+      return;
+    }
+
+    if (label === "±") {
+      setDisplay(d => {
+        const n = parseFloat(d);
+        return String(-n);
+      });
+      return;
+    }
+
+    if (label === "%") {
+      setDisplay(d => {
+        const n = parseFloat(d);
+        return String(n / 100);
+      });
+      return;
+    }
+
+    if (label === "÷" || label === "×" || label === "-" || label === "+") {
+      const opMap: Record<string, string> = { "÷": "/", "×": "*", "-": "-", "+": "+" };
+      setOperand(parseFloat(display));
+      setOperator(opMap[label]);
+      setResetNext(true);
+      return;
+    }
+
+    if (label === "=") {
+      if (operator !== null && operand !== null) {
+        const cur = parseFloat(display);
+        let result: number;
+        if (operator === "/") result = operand / cur;
+        else if (operator === "*") result = operand * cur;
+        else if (operator === "-") result = operand - cur;
+        else result = operand + cur;
+        const str = String(parseFloat(result.toPrecision(10)));
+        setDisplay(str);
+        setOperand(null);
+        setOperator(null);
+        setResetNext(true);
+      }
+      return;
+    }
+
+    if (label === ".") {
+      setDisplay(d => {
+        const base = resetNext ? "0" : d;
+        if (base.includes(".")) return base;
+        setResetNext(false);
+        return base + ".";
+      });
+      return;
+    }
+
+    // digit
+    setDisplay(d => {
+      if (resetNext) { setResetNext(false); return label; }
+      if (d === "0") return label;
+      return d + label;
+    });
+  }, [display, operand, operator, resetNext]);
+
+  const getButtonAt = useCallback((row: number, col: number): string => {
+    const label = CALC_BUTTONS[row][col];
+    // 0 spans col 0 and 1
+    if (row === 4 && col === 1) return "";
+    return label;
+  }, []);
+
+  const onUp = useCallback(() => { setSelRow(r => Math.max(0, r - 1)); return true; }, []);
+  const onDown = useCallback(() => { setSelRow(r => Math.min(CALC_ROWS - 1, r + 1)); return true; }, []);
+  const onLeft = useCallback(() => {
+    setSelCol(c => {
+      // skip blank cell
+      let next = Math.max(0, c - 1);
+      if (selRow === 4 && next === 1) next = 0;
+      return next;
+    });
+    return true;
+  }, [selRow]);
+  const onRight = useCallback(() => {
+    setSelCol(c => {
+      let next = Math.min(CALC_COLS - 1, c + 1);
+      if (selRow === 4 && next === 1) next = 2;
+      return next;
+    });
+    return true;
+  }, [selRow]);
+  const onActivate = useCallback(() => {
+    pressButton(getButtonAt(selRow, selCol));
+    return true;
+  }, [selRow, selCol, pressButton, getButtonAt]);
+
+  useFocus({
+    rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
+    order: 10,
+    onUp,
+    onDown,
+    onLeft,
+    onRight,
+    onActivate,
+  });
+
+  useEffect(() => {
+    const fb = engine.fb;
+    const ox = offsetX;
+    const oy = offsetY;
+
+    fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
+
+    // Display area
+    const displayText = display.length > 12 ? display.slice(0, 12) : display;
+    const textW = font.measureText(displayText, 2);
+    const textX = ox + W - textW - 4;
+    const textY = CONTENT_Y + oy + Math.floor((CALC_DISPLAY_H - 14) / 2);
+    font.drawText(fb, displayText, textX, textY, { scale: 2, intensity: 1 });
+
+    // Operator indicator
+    if (operator) {
+      const opDisplay: Record<string, string> = { "/": "÷", "*": "×", "-": "-", "+": "+" };
+      const opStr = opDisplay[operator] || operator;
+      font.drawText(fb, opStr, ox + 4, textY, { intensity: 0.6 });
+    }
+
+    // Divider below display
+    for (let x = ox; x < ox + W; x++) fb.set(x, CALC_DIVIDER_Y + oy, 0.5);
+
+    // Button grid
+    for (let row = 0; row < CALC_ROWS; row++) {
+      for (let col = 0; col < CALC_COLS; col++) {
+        const label = CALC_BUTTONS[row][col];
+        // Skip col 1 of row 4 (blank, 0 spans)
+        if (row === 4 && col === 1) continue;
+
+        const btnW = (row === 4 && col === 0) ? CALC_BTN_W * 2 : CALC_BTN_W;
+        const bx = ox + col * CALC_BTN_W;
+        const by = oy + CALC_GRID_Y + row * CALC_BTN_H;
+
+        const isSel = row === selRow && (
+          col === selCol || (row === 4 && col === 0 && selCol <= 1)
+        );
+
+        // Border
+        for (let i = 0; i < btnW; i++) {
+          fb.set(bx + i, by, 0.3);
+          fb.set(bx + i, by + CALC_BTN_H - 1, 0.3);
+        }
+        for (let i = 0; i < CALC_BTN_H; i++) {
+          fb.set(bx, by + i, 0.3);
+          fb.set(bx + btnW - 1, by + i, 0.3);
+        }
+
+        if (isSel) {
+          // Filled invert
+          fb.fillRect(bx + 1, by + 1, btnW - 2, CALC_BTN_H - 2, 1);
+        }
+
+        if (label) {
+          const lw = font.measureText(label);
+          const lx = bx + Math.floor((btnW - lw) / 2);
+          const ly = by + Math.floor((CALC_BTN_H - 7) / 2);
+          font.drawText(fb, label, lx, ly, { intensity: isSel ? 0 : 1 });
+        }
+      }
+    }
+
+    engine.markDirty();
+  }, [engine, offsetX, offsetY, display, operator, selRow, selCol]);
+
+  return (
+    <>
+      <TitleBar title="Calculator" />
+      <BottomBar onExtras={onExtras} />
+    </>
+  );
+}
+
 function SimpleScreen({ title, onExtras }: { title: string; onExtras: () => void }) {
   useCancel(onExtras);
   const text = "Coming soon";
@@ -783,7 +1008,7 @@ export function NewtonMode({ onExit }: { onExit: () => void }) {
         {screen === "notepad" && <NotepadScreen onExtras={goExtras} />}
         {screen === "names" && <NamesScreen onExtras={goExtras} />}
         {screen === "dates" && <DatesScreen onExtras={goExtras} />}
-        {screen === "calc" && <SimpleScreen title="Calculator" onExtras={goExtras} />}
+        {screen === "calc" && <CalcScreen onExtras={goExtras} />}
         {screen === "prefs" && <SimpleScreen title="Preferences" onExtras={goExtras} />}
       </LCDScreen>
     </div>
