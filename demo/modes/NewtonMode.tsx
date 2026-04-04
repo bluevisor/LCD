@@ -762,30 +762,6 @@ function DatesScreen({ screen, onNavigate, onExtras }: {
   );
 }
 
-// --- Stub Screens ---
-
-function StubScreen({ title, screen, onNavigate, onExtras }: {
-  title: string;
-  screen: AppScreen;
-  onNavigate: (s: Screen) => void;
-  onExtras: () => void;
-}) {
-  useCancel(onExtras);
-
-  const text = "Coming soon";
-  const textW = font.measureText(text);
-  const textX = Math.floor((W - textW) / 2);
-  const textY = CONTENT_Y + Math.floor(CONTENT_H / 2) - 4;
-
-  return (
-    <>
-      <TitleBar title={title} screen={screen} onNavigate={onNavigate} />
-      <LCDText x={textX} y={textY}>{text}</LCDText>
-      <BottomBar onExtras={onExtras} />
-    </>
-  );
-}
-
 // --- Main Newton Mode ---
 
 export function NewtonMode({ onExit }: { onExit: () => void }) {
