@@ -4,6 +4,9 @@ import { NewtonMode } from "./modes/NewtonMode";
 import { PalmMode } from "./modes/PalmMode";
 import { Nokia9210Mode } from "./modes/Nokia9210Mode";
 import { BlackBerryMode } from "./modes/BlackBerryMode";
+import { GameBoyMode } from "./modes/GameBoyMode";
+import { TamagotchiMode } from "./modes/TamagotchiMode";
+import { PagerMode } from "./modes/PagerMode";
 import {
   LCDScreen,
   LCDText,
@@ -14,9 +17,12 @@ import {
   useFocus,
 } from "../src";
 
-type Mode = "picker" | "nokia" | "nokia9210" | "newton" | "palm" | "blackberry";
+type Mode = "picker" | "nokia" | "nokia9210" | "newton" | "palm" | "blackberry" | "gameboy" | "tamagotchi" | "pager";
 
 const MODES: { key: Mode; label: string; detail: string }[] = [
+  { key: "gameboy", label: "Game Boy", detail: "160x144  1989" },
+  { key: "pager", label: "Motorola Pager", detail: "120x32  1990" },
+  { key: "tamagotchi", label: "Tamagotchi", detail: "32x16  1996" },
   { key: "newton", label: "Apple Newton", detail: "240x320  1993" },
   { key: "palm", label: "Palm Pilot", detail: "160x160  1996" },
   { key: "nokia", label: "Nokia 6110", detail: "84x48  1997" },
@@ -27,7 +33,7 @@ const MODES: { key: Mode; label: string; detail: string }[] = [
 const font = new BitmapFont();
 
 const W = 200;
-const H = 110;
+const H = 140;
 
 function useCancel(onBack: () => void) {
   const { engine } = useLCD();
@@ -173,5 +179,8 @@ export default function App() {
   if (mode === "palm") return <PalmMode onExit={() => setMode("picker")} />;
   if (mode === "nokia9210") return <Nokia9210Mode onExit={() => setMode("picker")} />;
   if (mode === "blackberry") return <BlackBerryMode onExit={() => setMode("picker")} />;
+  if (mode === "gameboy") return <GameBoyMode onExit={() => setMode("picker")} />;
+  if (mode === "tamagotchi") return <TamagotchiMode onExit={() => setMode("picker")} />;
+  if (mode === "pager") return <PagerMode onExit={() => setMode("picker")} />;
   return <ModePicker onSelect={setMode} selected={pickerIdx} setSelected={setPickerIdx} />;
 }

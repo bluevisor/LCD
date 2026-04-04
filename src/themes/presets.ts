@@ -42,5 +42,26 @@ export const palm: LCDTheme = {
   shadow: "#0E120B",
 };
 
-export const themePresets = { green, amber, gray, blue, newton, palm } as const;
+export const gameboy: LCDTheme = {
+  background: "#9BBC0F",
+  dotOff: "#8BAC0F",
+  dotOn: "#0F380F",
+  shadow: "#071A07",
+};
+
+export const tamagotchi: LCDTheme = {
+  background: "#C8D0A0",
+  dotOff: "#BCC498",
+  dotOn: "#282828",
+  shadow: "#141414",
+};
+
+export const pager: LCDTheme = {
+  background: "#7A8B6A",
+  dotOff: "#6E7F5E",
+  dotOn: "#1A2010",
+  shadow: "#0D1008",
+};
+
+export const themePresets = { green, amber, gray, blue, newton, palm, gameboy, tamagotchi, pager } as const;
 export type ThemePresetName = keyof typeof themePresets;
