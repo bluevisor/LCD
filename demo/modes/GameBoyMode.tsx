@@ -13,7 +13,7 @@ const W = 160;
 const H = 144;
 const CAMERAS: string[] = ["straight", "isometric", "desk", "handheld"];
 
-type Screen = "boot" | "menu" | "snake" | "pong" | "breakout" | "settings";
+type Screen = "boot" | "menu" | "snake" | "pong" | "breakout" | "tetris" | "settings";
 
 /* ── helpers ─────────────────────────────────────────────── */
 
@@ -95,6 +95,7 @@ function MenuScreen({ onSelect, onExit }: { onSelect: (s: Screen) => void; onExi
   const { engine, offsetX, offsetY } = useLCD();
   const [selected, setSelected] = useState(0);
   const items: { label: string; screen: Screen | "exit" }[] = [
+    { label: "Tetris", screen: "tetris" },
     { label: "Snake", screen: "snake" },
     { label: "Pong", screen: "pong" },
     { label: "Breakout", screen: "breakout" },
@@ -649,6 +650,324 @@ function BreakoutGame({ onBack }: { onBack: () => void }) {
   return null;
 }
 
+/* ── Tetris ──────────────────────────────────────────────── */
+
+const TETRO: number[][][] = [
+  [[1,1,1,1]],                               // I
+  [[1,1],[1,1]],                              // O
+  [[0,1,0],[1,1,1]],                          // T
+  [[1,0,0],[1,1,1]],                          // L
+  [[0,0,1],[1,1,1]],                          // J
+  [[0,1,1],[1,1,0]],                          // S
+  [[1,1,0],[0,1,1]],                          // Z
+];
+
+function rotateShape(shape: number[][]): number[][] {
+  const rows = shape.length;
+  const cols = shape[0].length;
+  const r: number[][] = [];
+  for (let c = 0; c < cols; c++) {
+    const row: number[] = [];
+    for (let rr = rows - 1; rr >= 0; rr--) {
+      row.push(shape[rr][c]);
+    }
+    r.push(row);
+  }
+  return r;
+}
+
+function TetrisGame({ onBack }: { onBack: () => void }) {
+  const { engine, offsetX, offsetY } = useLCD();
+  const [frame, setFrame] = useState(0);
+
+  const CELL = 4;
+  const BOARD_W = 10;
+  const BOARD_H = 20;
+  const TOP_BAR = 12;
+  const BOARD_PX_W = BOARD_W * CELL;
+  const BOARD_X = Math.floor((W - BOARD_PX_W) / 2);
+
+  const gameRef = useRef({
+    board: Array.from({ length: BOARD_H }, () => new Array(BOARD_W).fill(0)) as number[][],
+    piece: TETRO[0],
+    pieceX: 3,
+    pieceY: 0,
+    nextPiece: TETRO[Math.floor(Math.random() * TETRO.length)],
+    score: 0,
+    lines: 0,
+    level: 1,
+    gameOver: false,
+    dropCounter: 0,
+  });
+
+  const newPiece = useCallback(() => {
+    const g = gameRef.current;
+    g.piece = g.nextPiece;
+    g.nextPiece = TETRO[Math.floor(Math.random() * TETRO.length)];
+    g.pieceX = Math.floor((BOARD_W - g.piece[0].length) / 2);
+    g.pieceY = 0;
+    if (collides(g.board, g.piece, g.pieceX, g.pieceY)) {
+      g.gameOver = true;
+    }
+  }, []);
+
+  const resetGame = useCallback(() => {
+    const g = gameRef.current;
+    g.board = Array.from({ length: BOARD_H }, () => new Array(BOARD_W).fill(0));
+    g.score = 0;
+    g.lines = 0;
+    g.level = 1;
+    g.gameOver = false;
+    g.dropCounter = 0;
+    g.nextPiece = TETRO[Math.floor(Math.random() * TETRO.length)];
+    newPiece();
+  }, [newPiece]);
+
+  useCancel(onBack);
+
+  // Key input
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const g = gameRef.current;
+      if (g.gameOver) {
+        if (e.key === "Enter") resetGame();
+        return;
+      }
+      if (e.key === "ArrowLeft") {
+        if (!collides(g.board, g.piece, g.pieceX - 1, g.pieceY)) g.pieceX--;
+      } else if (e.key === "ArrowRight") {
+        if (!collides(g.board, g.piece, g.pieceX + 1, g.pieceY)) g.pieceX++;
+      } else if (e.key === "ArrowDown") {
+        if (!collides(g.board, g.piece, g.pieceX, g.pieceY + 1)) g.pieceY++;
+      } else if (e.key === "ArrowUp" || e.key === "z" || e.key === "x") {
+        const rotated = rotateShape(g.piece);
+        if (!collides(g.board, rotated, g.pieceX, g.pieceY)) {
+          g.piece = rotated;
+        } else if (!collides(g.board, rotated, g.pieceX - 1, g.pieceY)) {
+          g.piece = rotated;
+          g.pieceX--;
+        } else if (!collides(g.board, rotated, g.pieceX + 1, g.pieceY)) {
+          g.piece = rotated;
+          g.pieceX++;
+        }
+      } else if (e.key === " ") {
+        // Hard drop
+        while (!collides(g.board, g.piece, g.pieceX, g.pieceY + 1)) {
+          g.pieceY++;
+        }
+        lockPiece(g);
+        newPiece();
+      }
+      setFrame(f => f + 1);
+    };
+    engine.addKeyListener(handler);
+    return () => engine.removeKeyListener(handler);
+  }, [engine, resetGame, newPiece]);
+
+  // Game loop
+  useEffect(() => {
+    const id = setInterval(() => {
+      const g = gameRef.current;
+      if (g.gameOver) return;
+      g.dropCounter++;
+      const speed = Math.max(2, 10 - g.level);
+      if (g.dropCounter >= speed) {
+        g.dropCounter = 0;
+        if (!collides(g.board, g.piece, g.pieceX, g.pieceY + 1)) {
+          g.pieceY++;
+        } else {
+          lockPiece(g);
+          newPiece();
+        }
+      }
+      setFrame(f => f + 1);
+    }, 50);
+    return () => clearInterval(id);
+  }, [newPiece]);
+
+  // Render — authentic Game Boy Tetris layout
+  useEffect(() => {
+    const fb = engine.fb;
+    const ox = offsetX;
+    const oy = offsetY;
+    const g = gameRef.current;
+    const C = 7; // cell size in pixels (original GB Tetris used ~8px cells in 160x144)
+
+    fb.fillRect(ox, oy, W, H, 0);
+
+    // Board dimensions
+    const bw = BOARD_W * C;
+    const bh = BOARD_H * C; // 140px — nearly full height
+    const bx = ox + 2; // board flush left with 2px margin
+    const by = oy + 2;
+
+    // Board border — double-line on left, right, bottom (authentic)
+    for (let y = 0; y < bh; y++) {
+      fb.set(bx - 1, by + y, 1);
+      fb.set(bx - 2, by + y, 1);
+      fb.set(bx + bw, by + y, 1);
+      fb.set(bx + bw + 1, by + y, 1);
+    }
+    for (let x = -2; x <= bw + 1; x++) {
+      fb.set(bx + x, by + bh, 1);
+      fb.set(bx + x, by + bh + 1, 1);
+    }
+
+    // Draw brick helper
+    const drawBrick = (px: number, py: number, intensity: number) => {
+      // Filled cell with inner highlight for 3D brick look
+      fb.fillRect(px, py, C - 1, C - 1, intensity);
+      // Top-left highlight
+      for (let i = 0; i < C - 1; i++) {
+        fb.set(px + i, py, Math.min(1, intensity + 0.15));
+        fb.set(px, py + i, Math.min(1, intensity + 0.15));
+      }
+      // Bottom-right shadow
+      for (let i = 0; i < C - 2; i++) {
+        fb.set(px + i + 1, py + C - 2, Math.max(0, intensity - 0.2));
+        fb.set(px + C - 2, py + i + 1, Math.max(0, intensity - 0.2));
+      }
+    };
+
+    // Board cells
+    for (let r = 0; r < BOARD_H; r++) {
+      for (let c = 0; c < BOARD_W; c++) {
+        if (g.board[r][c]) {
+          drawBrick(bx + c * C, by + r * C, 1);
+        }
+      }
+    }
+
+    // Current piece
+    if (!g.gameOver) {
+      for (let r = 0; r < g.piece.length; r++) {
+        for (let c = 0; c < g.piece[r].length; c++) {
+          if (g.piece[r][c]) {
+            drawBrick(bx + (g.pieceX + c) * C, by + (g.pieceY + r) * C, 1);
+          }
+        }
+      }
+    }
+
+    // Right panel — starts after board border
+    const rx = bx + bw + 6; // right panel x
+    const rw = W - rx - ox - 2; // remaining width
+
+    // SCORE box
+    const drawBox = (bxp: number, byp: number, w: number, h: number, label: string, value: string) => {
+      // Thick border (2px)
+      for (let x = 0; x < w; x++) {
+        fb.set(bxp + x, byp, 1); fb.set(bxp + x, byp + 1, 1);
+        fb.set(bxp + x, byp + h - 1, 1); fb.set(bxp + x, byp + h - 2, 1);
+      }
+      for (let y = 0; y < h; y++) {
+        fb.set(bxp, byp + y, 1); fb.set(bxp + 1, byp + y, 1);
+        fb.set(bxp + w - 1, byp + y, 1); fb.set(bxp + w - 2, byp + y, 1);
+      }
+      // Label centered on top border
+      const lw = font.measureText(label);
+      const lx = bxp + Math.floor((w - lw) / 2);
+      fb.fillRect(lx - 1, byp, lw + 2, 2, 0);
+      font.drawText(fb, label, lx, byp - 2, { intensity: 1 });
+      // Value centered inside
+      const vw = font.measureText(value);
+      const vx = bxp + Math.floor((w - vw) / 2);
+      font.drawText(fb, value, vx, byp + Math.floor((h - 7) / 2) + 1, { intensity: 1 });
+    };
+
+    drawBox(rx, by + 2, rw, 24, "SCORE", String(g.score));
+    drawBox(rx, by + 32, rw, 24, "LEVEL", String(g.level));
+    drawBox(rx, by + 62, rw, 24, "LINES", String(g.lines));
+
+    // Next piece preview box
+    const nby = by + 94;
+    const nbh = bh - 92;
+    // Thick border
+    for (let x = 0; x < rw; x++) {
+      fb.set(rx + x, nby, 1); fb.set(rx + x, nby + 1, 1);
+      fb.set(rx + x, nby + nbh - 1, 1); fb.set(rx + x, nby + nbh - 2, 1);
+    }
+    for (let y = 0; y < nbh; y++) {
+      fb.set(rx, nby + y, 1); fb.set(rx + 1, nby + y, 1);
+      fb.set(rx + rw - 1, nby + y, 1); fb.set(rx + rw - 2, nby + y, 1);
+    }
+    // Next piece centered in box
+    const np = g.nextPiece;
+    const npW = np[0].length * C;
+    const npH = np.length * C;
+    const npx = rx + Math.floor((rw - npW) / 2);
+    const npy = nby + Math.floor((nbh - npH) / 2);
+    for (let r = 0; r < np.length; r++) {
+      for (let c = 0; c < np[r].length; c++) {
+        if (np[r][c]) {
+          drawBrick(npx + c * C, npy + r * C, 0.8);
+        }
+      }
+    }
+
+    // Game over overlay
+    if (g.gameOver) {
+      fb.fillRect(bx, by + 50, bw, 36, 0);
+      // Border around overlay
+      for (let x = 0; x < bw; x++) { fb.set(bx + x, by + 50, 1); fb.set(bx + x, by + 85, 1); }
+      for (let y = 50; y <= 85; y++) { fb.set(bx, by + y, 1); fb.set(bx + bw - 1, by + y, 1); }
+      const goText = "GAME OVER";
+      const gow = font.measureText(goText);
+      font.drawText(fb, goText, bx + Math.floor((bw - gow) / 2), by + 56, { intensity: 1 });
+      const retryText = "ENTER:Retry";
+      const retw = font.measureText(retryText);
+      font.drawText(fb, retryText, bx + Math.floor((bw - retw) / 2), by + 72, { intensity: 0.6 });
+    }
+
+    engine.markDirty();
+  }, [engine, offsetX, offsetY, frame]);
+
+  return null;
+}
+
+function collides(board: number[][], piece: number[][], px: number, py: number): boolean {
+  for (let r = 0; r < piece.length; r++) {
+    for (let c = 0; c < piece[r].length; c++) {
+      if (!piece[r][c]) continue;
+      const bx = px + c;
+      const by = py + r;
+      if (bx < 0 || bx >= 10 || by >= 20) return true;
+      if (by >= 0 && board[by][bx]) return true;
+    }
+  }
+  return false;
+}
+
+function lockPiece(g: { board: number[][]; piece: number[][]; pieceX: number; pieceY: number; score: number; lines: number; level: number }) {
+  for (let r = 0; r < g.piece.length; r++) {
+    for (let c = 0; c < g.piece[r].length; c++) {
+      if (g.piece[r][c]) {
+        const by = g.pieceY + r;
+        const bx = g.pieceX + c;
+        if (by >= 0 && by < 20 && bx >= 0 && bx < 10) {
+          g.board[by][bx] = 1;
+        }
+      }
+    }
+  }
+  // Clear lines
+  let cleared = 0;
+  for (let r = 19; r >= 0; r--) {
+    if (g.board[r].every(c => c === 1)) {
+      g.board.splice(r, 1);
+      g.board.unshift(new Array(10).fill(0));
+      cleared++;
+      r++; // recheck this row
+    }
+  }
+  if (cleared > 0) {
+    const points = [0, 100, 300, 500, 800];
+    g.score += (points[cleared] || 800) * g.level;
+    g.lines += cleared;
+    g.level = Math.floor(g.lines / 10) + 1;
+  }
+}
+
 /* ── Settings ────────────────────────────────────────────── */
 
 function OptionRow({ y, label, value, options, onChange, focusOrder }: {
@@ -784,6 +1103,7 @@ export function GameBoyMode({ onExit }: { onExit: () => void }) {
 
         {screen === "boot" && <BootScreen onDone={goMenu} />}
         {screen === "menu" && <MenuScreen onSelect={setScreen} onExit={onExit} />}
+        {screen === "tetris" && <TetrisGame onBack={goMenu} />}
         {screen === "snake" && <SnakeGame onBack={goMenu} />}
         {screen === "pong" && <PongGame onBack={goMenu} />}
         {screen === "breakout" && <BreakoutGame onBack={goMenu} />}
