@@ -110,7 +110,7 @@ export class FocusManager {
           focused.onLeft();
           return true;
         }
-        return this.triggerCancel(e);
+        return false;
 
       case "Escape":
       case "Backspace":
