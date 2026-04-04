@@ -439,6 +439,150 @@ function NotepadScreen({ screen, onNavigate, onExtras }: {
   );
 }
 
+// --- Names Screen ---
+
+interface Contact {
+  name: string;
+  phone: string;
+  address: string;
+  email: string;
+}
+
+const CONTACTS: Contact[] = [
+  { name: "Ada Lovelace", phone: "555-0101", address: "12 Math Lane", email: "ada@engine.co" },
+  { name: "Alan Turing", phone: "555-0102", address: "7 Bletchley Rd", email: "alan@enigma.uk" },
+  { name: "Bob Kahn", phone: "555-0201", address: "9 Internet Ave", email: "bob@tcp.net" },
+  { name: "Claude Shannon", phone: "555-0301", address: "1 Bit Street", email: "claude@info.io" },
+  { name: "Dennis Ritchie", phone: "555-0401", address: "4 Unix Way", email: "dmr@bell.com" },
+  { name: "Grace Hopper", phone: "555-0701", address: "3 Navy Blvd", email: "grace@cobol.mil" },
+  { name: "John von Neumann", phone: "555-1001", address: "5 Logic Dr", email: "jvn@ias.edu" },
+  { name: "Nikola Tesla", phone: "555-1401", address: "8 AC Current Pl", email: "nikola@tesla.rs" },
+];
+
+const TAB_W = 14;
+const CONTACT_H = 22;
+
+function NamesScreen({ screen, onNavigate, onExtras }: {
+  screen: AppScreen;
+  onNavigate: (s: Screen) => void;
+  onExtras: () => void;
+}) {
+  const [selected, setSelected] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  const { engine, offsetX, offsetY } = useLCD();
+
+  const letters = Array.from(new Set(CONTACTS.map(c => c.name[0]))).sort();
+
+  const onCancel = useCallback(() => {
+    if (expanded) {
+      setExpanded(false);
+    } else {
+      onExtras();
+    }
+  }, [expanded, onExtras]);
+
+  useCancel(onCancel);
+
+  const onUp = useCallback(() => {
+    if (expanded) return false;
+    setSelected(s => Math.max(0, s - 1));
+    return true;
+  }, [expanded]);
+
+  const onDown = useCallback(() => {
+    if (expanded) return false;
+    setSelected(s => Math.min(CONTACTS.length - 1, s + 1));
+    return true;
+  }, [expanded]);
+
+  const onActivate = useCallback(() => {
+    setExpanded(e => !e);
+    return true;
+  }, []);
+
+  useFocus({
+    rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
+    order: 10,
+    onUp,
+    onDown,
+    onActivate,
+  });
+
+  useEffect(() => {
+    const fb = engine.fb;
+    const ox = offsetX;
+    const oy = offsetY;
+
+    fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
+
+    if (expanded) {
+      const contact = CONTACTS[selected];
+      const cx = ox + 6;
+      let cy = CONTENT_Y + oy + 8;
+
+      // Name with underline
+      font.drawText(fb, contact.name, cx, cy, { intensity: 1 });
+      const nameW = font.measureText(contact.name);
+      for (let x = cx; x < cx + nameW; x++) fb.set(x, cy + 7, 1);
+      cy += 18;
+
+      font.drawText(fb, `Tel: ${contact.phone}`, cx, cy, { intensity: 0.8 });
+      cy += 14;
+      font.drawText(fb, `Addr: ${contact.address}`, cx, cy, { intensity: 0.8 });
+      cy += 14;
+      font.drawText(fb, `Mail: ${contact.email}`, cx, cy, { intensity: 0.8 });
+
+      // Divider
+      const divY = CONTENT_Y + oy + CONTENT_H - 14;
+      for (let x = ox; x < ox + W; x++) fb.set(x, divY, 0.4);
+
+      // Hint
+      const hint = "Esc to go back";
+      const hintW = font.measureText(hint);
+      const hintX = ox + Math.floor((W - hintW) / 2);
+      font.drawText(fb, hint, hintX, divY + 3, { intensity: 0.5 });
+    } else {
+      // Tab strip
+      const selLetter = CONTACTS[selected].name[0];
+      letters.forEach((letter, i) => {
+        const tabY = CONTENT_Y + oy + i * 12 + 2;
+        const isSel = letter === selLetter;
+        if (isSel) {
+          fb.fillRect(ox + 1, tabY - 1, TAB_W - 2, 10, 1);
+          font.drawText(fb, letter, ox + 3, tabY, { intensity: 0 });
+        } else {
+          font.drawText(fb, letter, ox + 3, tabY, { intensity: 0.7 });
+        }
+      });
+
+      // Vertical divider
+      for (let y = CONTENT_Y + oy; y < CONTENT_Y + oy + CONTENT_H; y++) {
+        fb.set(ox + TAB_W, y, 0.4);
+      }
+
+      // Contact list
+      const listX = ox + TAB_W + 4;
+      CONTACTS.forEach((contact, i) => {
+        const itemY = CONTENT_Y + oy + i * CONTACT_H;
+        if (i === selected) {
+          fb.fillRect(ox + TAB_W + 1, itemY, W - TAB_W - 1, CONTACT_H, 0.12);
+        }
+        font.drawText(fb, contact.name, listX, itemY + 4, { intensity: 1 });
+        font.drawText(fb, contact.phone, listX, itemY + 14, { intensity: 0.6 });
+      });
+    }
+
+    engine.markDirty();
+  }, [engine, offsetX, offsetY, selected, expanded, letters]);
+
+  return (
+    <>
+      <TitleBar title="Names" screen={screen} onNavigate={onNavigate} />
+      <BottomBar onExtras={onExtras} />
+    </>
+  );
+}
+
 // --- Stub Screens ---
 
 function StubScreen({ title, screen, onNavigate, onExtras }: {
@@ -512,7 +656,7 @@ export function NewtonMode({ onExit }: { onExit: () => void }) {
 
         {screen === "extras" && <ExtrasScreen onNavigate={setScreen} onExit={onExit} />}
         {screen === "notepad" && <NotepadScreen screen="notepad" onNavigate={setScreen} onExtras={goExtras} />}
-        {screen === "names" && <StubScreen title="Names" screen="names" onNavigate={setScreen} onExtras={goExtras} />}
+        {screen === "names" && <NamesScreen screen="names" onNavigate={setScreen} onExtras={goExtras} />}
         {screen === "dates" && <StubScreen title="Dates" screen="dates" onNavigate={setScreen} onExtras={goExtras} />}
       </LCDScreen>
     </div>
