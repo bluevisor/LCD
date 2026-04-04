@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { NokiaMode } from "./modes/NokiaMode";
+import { NewtonMode } from "./modes/NewtonMode";
 
 type Mode = "picker" | "nokia" | "newton";
 
@@ -54,6 +55,6 @@ export default function App() {
   const [mode, setMode] = useState<Mode>("picker");
 
   if (mode === "nokia") return <NokiaMode onExit={() => setMode("picker")} />;
-  // Newton mode will be added in Task 4
+  if (mode === "newton") return <NewtonMode onExit={() => setMode("picker")} />;
   return <ModePicker onSelect={setMode} />;
 }
