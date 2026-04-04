@@ -6,7 +6,7 @@ import { PalmMode } from "./modes/PalmMode";
 type Mode = "picker" | "nokia" | "newton" | "palm";
 
 const MODES: { key: Mode; label: string; color: string }[] = [
-  { key: "nokia", label: "Nokia Mode", color: "#7B8B2D" },
+  { key: "nokia", label: "Nokia 6110", color: "#7B8B2D" },
   { key: "newton", label: "Newton Mode", color: "#9BA88A" },
   { key: "palm", label: "Palm Pilot", color: "#B0BFA0" },
 ];
