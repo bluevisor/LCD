@@ -800,7 +800,7 @@ export function Nokia9210Mode({ onExit, camera, setCamera, perspective, setPersp
 }) {
   const [pixelSize, setPixelSize] = useState(3);
   const [screen, setScreen] = useState<Screen>("desktop");
-  const [theme, setTheme] = useState<ThemePresetName>("blue");
+  const [theme, setTheme] = useState<ThemePresetName>("gray");
 
   const goDesktop = useCallback(() => setScreen("desktop"), []);
 
