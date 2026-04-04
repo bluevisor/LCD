@@ -352,10 +352,15 @@ function TamagotchiInner({ onExit }: { onExit: () => void }) {
 
 /* ── Outer wrapper ──────────────────────────────────────── */
 
-export function TamagotchiMode({ onExit }: { onExit: () => void }) {
-  const [pixelSize, setPixelSize] = useState(12);
-  const [cameraIdx, setCameraIdx] = useState(0);
-  const [perspective, setPerspective] = useState(false);
+export function TamagotchiMode({ onExit, pixelSize, setPixelSize, camera, setCamera, perspective, setPerspective }: {
+  onExit: () => void;
+  pixelSize: number;
+  setPixelSize: (fn: (s: number) => number) => void;
+  camera: string;
+  setCamera: (fn: (s: string) => string) => void;
+  perspective: boolean;
+  setPerspective: (fn: (s: boolean) => boolean) => void;
+}) {
   const [theme] = useState<ThemePresetName>("tamagotchi");
 
   // Shared hotkeys
@@ -363,8 +368,14 @@ export function TamagotchiMode({ onExit }: { onExit: () => void }) {
     function onKey(e: KeyboardEvent) {
       if (e.key === "-") setPixelSize((s) => Math.max(2, s - 1));
       if (e.key === "=" || e.key === "+") setPixelSize((s) => Math.min(24, s + 1));
-      if (e.key === ",") setCameraIdx((i) => (i + CAMERAS.length - 1) % CAMERAS.length);
-      if (e.key === ".") setCameraIdx((i) => (i + 1) % CAMERAS.length);
+      if (e.key === ",") setCamera((c) => {
+        const idx = CAMERAS.indexOf(c);
+        return CAMERAS[(idx + CAMERAS.length - 1) % CAMERAS.length];
+      });
+      if (e.key === ".") setCamera((c) => {
+        const idx = CAMERAS.indexOf(c);
+        return CAMERAS[(idx + 1) % CAMERAS.length];
+      });
       if (e.key === "\\") setPerspective((p) => !p);
     }
     window.addEventListener("keydown", onKey);
@@ -386,7 +397,7 @@ export function TamagotchiMode({ onExit }: { onExit: () => void }) {
         height={H}
         pixelSize={pixelSize}
         theme={theme}
-        camera={CAMERAS[cameraIdx] as any}
+        camera={camera as any}
         perspective={perspective}
       >
         <TamagotchiInner onExit={onExit} />

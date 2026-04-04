@@ -1295,11 +1295,16 @@ function PrefsScreen({ onExtras, theme, onThemeChange, camera, onCameraChange, p
 
 // --- Main Newton Mode ---
 
-export function NewtonMode({ onExit }: { onExit: () => void }) {
+export function NewtonMode({ onExit, pixelSize, setPixelSize, camera, setCamera, perspective, setPerspective }: {
+  onExit: () => void;
+  pixelSize: number;
+  setPixelSize: (fn: (s: number) => number) => void;
+  camera: string;
+  setCamera: (fn: (s: string) => string) => void;
+  perspective: boolean;
+  setPerspective: (fn: (s: boolean) => boolean) => void;
+}) {
   const [screen, setScreen] = useState<Screen>("extras");
-  const [pixelSize, setPixelSize] = useState(3);
-  const [camera, setCamera] = useState("straight");
-  const [perspective, setPerspective] = useState(false);
   const [theme, setTheme] = useState<string>("newton");
 
   const goExtras = useCallback(() => setScreen("extras"), []);
@@ -1346,7 +1351,7 @@ export function NewtonMode({ onExit }: { onExit: () => void }) {
         {screen === "names" && <NamesScreen onExtras={goExtras} />}
         {screen === "dates" && <DatesScreen onExtras={goExtras} />}
         {screen === "calc" && <CalcScreen onExtras={goExtras} />}
-        {screen === "prefs" && <PrefsScreen onExtras={goExtras} theme={theme} onThemeChange={setTheme} camera={camera} onCameraChange={setCamera} pixelSize={pixelSize} onPixelSizeChange={setPixelSize} perspective={perspective} onPerspectiveChange={setPerspective} />}
+        {screen === "prefs" && <PrefsScreen onExtras={goExtras} theme={theme} onThemeChange={setTheme} camera={camera} onCameraChange={(c) => setCamera(() => c)} pixelSize={pixelSize} onPixelSizeChange={(s) => setPixelSize(() => s)} perspective={perspective} onPerspectiveChange={(v) => setPerspective(() => v)} />}
       </LCDScreen>
     </div>
   );

@@ -185,14 +185,16 @@ export default function App() {
     return () => window.removeEventListener("keydown", handler);
   }, [mode]);
 
-  if (mode === "nokia") return <NokiaMode onExit={() => setMode("picker")} />;
-  if (mode === "newton") return <NewtonMode onExit={() => setMode("picker")} />;
-  if (mode === "palm") return <PalmMode onExit={() => setMode("picker")} />;
-  if (mode === "nokia9210") return <Nokia9210Mode onExit={() => setMode("picker")} />;
-  if (mode === "blackberry") return <BlackBerryMode onExit={() => setMode("picker")} />;
-  if (mode === "gameboy") return <GameBoyMode onExit={() => setMode("picker")} />;
-  if (mode === "tamagotchi") return <TamagotchiMode onExit={() => setMode("picker")} />;
-  if (mode === "pager") return <PagerMode onExit={() => setMode("picker")} />;
+  const exitTo = useCallback(() => setMode("picker"), []);
+
+  if (mode === "nokia") return <NokiaMode onExit={exitTo} pixelSize={pixelSize} setPixelSize={setPixelSize} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
+  if (mode === "newton") return <NewtonMode onExit={exitTo} pixelSize={pixelSize} setPixelSize={setPixelSize} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
+  if (mode === "palm") return <PalmMode onExit={exitTo} pixelSize={pixelSize} setPixelSize={setPixelSize} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
+  if (mode === "nokia9210") return <Nokia9210Mode onExit={exitTo} pixelSize={pixelSize} setPixelSize={setPixelSize} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
+  if (mode === "blackberry") return <BlackBerryMode onExit={exitTo} pixelSize={pixelSize} setPixelSize={setPixelSize} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
+  if (mode === "gameboy") return <GameBoyMode onExit={exitTo} pixelSize={pixelSize} setPixelSize={setPixelSize} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
+  if (mode === "tamagotchi") return <TamagotchiMode onExit={exitTo} pixelSize={pixelSize} setPixelSize={setPixelSize} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
+  if (mode === "pager") return <PagerMode onExit={exitTo} pixelSize={pixelSize} setPixelSize={setPixelSize} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
   return (
     <ModePicker
       onSelect={setMode}

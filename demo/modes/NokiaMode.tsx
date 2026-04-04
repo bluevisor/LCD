@@ -791,12 +791,17 @@ function ContactViewScreen({ contactIndex, onBack }: {
 
 /* ── Main Export ──────────────────────────────────────────── */
 
-export function NokiaMode({ onExit }: { onExit: () => void }) {
+export function NokiaMode({ onExit, pixelSize, setPixelSize, camera, setCamera, perspective, setPerspective }: {
+  onExit: () => void;
+  pixelSize: number;
+  setPixelSize: (fn: (s: number) => number) => void;
+  camera: string;
+  setCamera: (fn: (s: string) => string) => void;
+  perspective: boolean;
+  setPerspective: (fn: (s: boolean) => boolean) => void;
+}) {
   const [screen, setScreen] = useState<Screen>("idle");
   const [theme, setTheme] = useState<ThemePresetName>("green");
-  const [camera, setCamera] = useState("straight");
-  const [pixelSize, setPixelSize] = useState(6);
-  const [perspective, setPerspective] = useState(false);
 
   // sub-screen data
   const [callLogIndex, setCallLogIndex] = useState(0);
@@ -880,11 +885,11 @@ export function NokiaMode({ onExit }: { onExit: () => void }) {
             theme={theme}
             onThemeChange={setTheme}
             camera={camera}
-            onCameraChange={setCamera}
+            onCameraChange={(c) => setCamera(() => c)}
             pixelSize={pixelSize}
-            onPixelSizeChange={setPixelSize}
+            onPixelSizeChange={(s) => setPixelSize(() => s)}
             perspective={perspective}
-            onPerspectiveChange={setPerspective}
+            onPerspectiveChange={(v) => setPerspective(() => v)}
           />
         )}
         {screen === "games" && (

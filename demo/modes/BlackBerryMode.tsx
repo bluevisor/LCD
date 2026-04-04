@@ -782,12 +782,17 @@ function OptionsScreen({ onBack, theme, onThemeChange, camera, onCameraChange, p
 
 /* ── Main Export ──────────────────────────────────────────── */
 
-export function BlackBerryMode({ onExit }: { onExit: () => void }) {
+export function BlackBerryMode({ onExit, pixelSize, setPixelSize, camera, setCamera, perspective, setPerspective }: {
+  onExit: () => void;
+  pixelSize: number;
+  setPixelSize: (fn: (s: number) => number) => void;
+  camera: string;
+  setCamera: (fn: (s: string) => string) => void;
+  perspective: boolean;
+  setPerspective: (fn: (s: boolean) => boolean) => void;
+}) {
   const [screen, setScreen] = useState<Screen>("home");
   const [theme, setTheme] = useState<ThemePresetName>("green");
-  const [camera, setCamera] = useState("straight");
-  const [pixelSize, setPixelSize] = useState(4);
-  const [perspective, setPerspective] = useState(false);
 
   const [msgIndex, setMsgIndex] = useState(0);
   const [contactIndex, setContactIndex] = useState(0);
@@ -871,11 +876,11 @@ export function BlackBerryMode({ onExit }: { onExit: () => void }) {
             theme={theme}
             onThemeChange={setTheme}
             camera={camera}
-            onCameraChange={setCamera}
+            onCameraChange={(c) => setCamera(() => c)}
             pixelSize={pixelSize}
-            onPixelSizeChange={setPixelSize}
+            onPixelSizeChange={(s) => setPixelSize(() => s)}
             perspective={perspective}
-            onPerspectiveChange={setPerspective}
+            onPerspectiveChange={(v) => setPerspective(() => v)}
           />
         )}
       </LCDScreen>

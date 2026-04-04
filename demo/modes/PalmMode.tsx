@@ -1126,11 +1126,16 @@ function PrefsScreen({ onHome, theme, onThemeChange, camera, onCameraChange, pix
 
 // --- Main Palm Mode ---
 
-export function PalmMode({ onExit }: { onExit: () => void }) {
+export function PalmMode({ onExit, pixelSize, setPixelSize, camera, setCamera, perspective, setPerspective }: {
+  onExit: () => void;
+  pixelSize: number;
+  setPixelSize: (fn: (s: number) => number) => void;
+  camera: string;
+  setCamera: (fn: (s: string) => string) => void;
+  perspective: boolean;
+  setPerspective: (fn: (s: boolean) => boolean) => void;
+}) {
   const [screen, setScreen] = useState<Screen>("home");
-  const [pixelSize, setPixelSize] = useState(4);
-  const [camera, setCamera] = useState("straight");
-  const [perspective, setPerspective] = useState(false);
   const [theme, setTheme] = useState<string>("palm");
 
   const goHome = useCallback(() => setScreen("home"), []);
@@ -1178,7 +1183,7 @@ export function PalmMode({ onExit }: { onExit: () => void }) {
         {screen === "todo" && <TodoScreen onHome={goHome} />}
         {screen === "memo" && <MemoPadScreen onHome={goHome} />}
         {screen === "calc" && <CalcScreen onHome={goHome} />}
-        {screen === "prefs" && <PrefsScreen onHome={goHome} theme={theme} onThemeChange={setTheme} camera={camera} onCameraChange={setCamera} pixelSize={pixelSize} onPixelSizeChange={setPixelSize} perspective={perspective} onPerspectiveChange={setPerspective} />}
+        {screen === "prefs" && <PrefsScreen onHome={goHome} theme={theme} onThemeChange={setTheme} camera={camera} onCameraChange={(c) => setCamera(() => c)} pixelSize={pixelSize} onPixelSizeChange={(s) => setPixelSize(() => s)} perspective={perspective} onPerspectiveChange={(v) => setPerspective(() => v)} />}
       </LCDScreen>
     </div>
   );
