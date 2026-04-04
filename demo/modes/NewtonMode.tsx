@@ -944,14 +944,114 @@ function CalcScreen({ onExtras }: { onExtras: () => void }) {
   );
 }
 
-function SimpleScreen({ title, onExtras }: { title: string; onExtras: () => void }) {
+// --- Prefs Screen ---
+
+const THEMES = ["green", "amber", "gray", "blue", "newton"];
+const PIXEL_SIZES = [2, 3, 4, 5, 6, 7, 8];
+
+function PrefsScreen({ onExtras, theme, onThemeChange, camera, onCameraChange, pixelSize, onPixelSizeChange, perspective, onPerspectiveChange }: {
+  onExtras: () => void;
+  theme: string;
+  onThemeChange: (t: string) => void;
+  camera: string;
+  onCameraChange: (c: string) => void;
+  pixelSize: number;
+  onPixelSizeChange: (s: number) => void;
+  perspective: boolean;
+  onPerspectiveChange: (v: boolean) => void;
+}) {
+  const [selectedRow, setSelectedRow] = useState(0);
+  const { engine, offsetX, offsetY } = useLCD();
+
   useCancel(onExtras);
-  const text = "Coming soon";
-  const textW = font.measureText(text);
+
+  const ROW_COUNT = 4;
+  const ROW_SPACING = 16;
+  const FIRST_ROW_Y = CONTENT_Y + 8;
+
+  const getLabel = (row: number) => ["Theme", "Camera", "Pixels", "Persp."][row];
+  const getValue = (row: number): string => {
+    if (row === 0) return theme;
+    if (row === 1) return camera;
+    if (row === 2) return String(pixelSize);
+    return perspective ? "ON" : "OFF";
+  };
+
+  const cycleLeft = useCallback((row: number) => {
+    if (row === 0) {
+      const idx = THEMES.indexOf(theme);
+      onThemeChange(THEMES[(idx - 1 + THEMES.length) % THEMES.length]);
+    } else if (row === 1) {
+      const idx = CAMERAS.indexOf(camera);
+      onCameraChange(CAMERAS[(idx - 1 + CAMERAS.length) % CAMERAS.length]);
+    } else if (row === 2) {
+      const idx = PIXEL_SIZES.indexOf(pixelSize);
+      onPixelSizeChange(PIXEL_SIZES[Math.max(0, idx - 1)]);
+    } else {
+      onPerspectiveChange(!perspective);
+    }
+  }, [theme, camera, pixelSize, perspective, onThemeChange, onCameraChange, onPixelSizeChange, onPerspectiveChange]);
+
+  const cycleRight = useCallback((row: number) => {
+    if (row === 0) {
+      const idx = THEMES.indexOf(theme);
+      onThemeChange(THEMES[(idx + 1) % THEMES.length]);
+    } else if (row === 1) {
+      const idx = CAMERAS.indexOf(camera);
+      onCameraChange(CAMERAS[(idx + 1) % CAMERAS.length]);
+    } else if (row === 2) {
+      const idx = PIXEL_SIZES.indexOf(pixelSize);
+      onPixelSizeChange(PIXEL_SIZES[Math.min(PIXEL_SIZES.length - 1, idx + 1)]);
+    } else {
+      onPerspectiveChange(!perspective);
+    }
+  }, [theme, camera, pixelSize, perspective, onThemeChange, onCameraChange, onPixelSizeChange, onPerspectiveChange]);
+
+  const onUp = useCallback(() => { setSelectedRow(r => Math.max(0, r - 1)); return true; }, []);
+  const onDown = useCallback(() => { setSelectedRow(r => Math.min(ROW_COUNT - 1, r + 1)); return true; }, []);
+  const onLeft = useCallback(() => { cycleLeft(selectedRow); return true; }, [selectedRow, cycleLeft]);
+  const onRight = useCallback(() => { cycleRight(selectedRow); return true; }, [selectedRow, cycleRight]);
+
+  useFocus({
+    rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
+    order: 10,
+    onUp,
+    onDown,
+    onLeft,
+    onRight,
+  });
+
+  useEffect(() => {
+    const fb = engine.fb;
+    const ox = offsetX;
+    const oy = offsetY;
+
+    fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
+
+    for (let row = 0; row < ROW_COUNT; row++) {
+      const rowY = FIRST_ROW_Y + row * ROW_SPACING + oy;
+      const label = getLabel(row);
+      const value = `< ${getValue(row)} >`;
+      const valueW = font.measureText(value);
+      const selected = row === selectedRow;
+
+      font.drawText(fb, label, ox + 8, rowY, { intensity: 1 });
+      font.drawText(fb, value, ox + W - valueW - 8, rowY, { intensity: selected ? 1 : 0.7 });
+    }
+
+    const noticeText = "Changes apply live";
+    const noticeW = font.measureText(noticeText);
+    const noticeY = FIRST_ROW_Y + ROW_COUNT * ROW_SPACING + 8 + oy;
+    const divY = noticeY - 4;
+    for (let x = ox; x < ox + W; x++) fb.set(x, divY, 0.3);
+    font.drawText(fb, noticeText, ox + Math.floor((W - noticeW) / 2), noticeY, { intensity: 0.5 });
+
+    engine.markDirty();
+  }, [engine, offsetX, offsetY, selectedRow, theme, camera, pixelSize, perspective]);
+
   return (
     <>
-      <TitleBar title={title} />
-      <LCDText x={Math.floor((W - textW) / 2)} y={CONTENT_Y + Math.floor(CONTENT_H / 2) - 4}>{text}</LCDText>
+      <TitleBar title="Preferences" />
       <BottomBar onExtras={onExtras} />
     </>
   );
@@ -964,6 +1064,7 @@ export function NewtonMode({ onExit }: { onExit: () => void }) {
   const [pixelSize, setPixelSize] = useState(3);
   const [camera, setCamera] = useState("straight");
   const [perspective, setPerspective] = useState(false);
+  const [theme, setTheme] = useState<string>("newton");
 
   const goExtras = useCallback(() => setScreen("extras"), []);
 
@@ -1001,7 +1102,7 @@ export function NewtonMode({ onExit }: { onExit: () => void }) {
       background: "#111",
       overflow: "hidden",
     }}>
-      <LCDScreen width={W} height={H} pixelSize={pixelSize} theme={"newton" as ThemePresetName} camera={camera} perspective={perspective}>
+      <LCDScreen width={W} height={H} pixelSize={pixelSize} theme={theme as ThemePresetName} camera={camera} perspective={perspective}>
         <ClearRect x={0} y={0} width={W} height={H} deps={[screen]} />
 
         {screen === "extras" && <ExtrasScreen onNavigate={setScreen} onExit={onExit} />}
@@ -1009,7 +1110,7 @@ export function NewtonMode({ onExit }: { onExit: () => void }) {
         {screen === "names" && <NamesScreen onExtras={goExtras} />}
         {screen === "dates" && <DatesScreen onExtras={goExtras} />}
         {screen === "calc" && <CalcScreen onExtras={goExtras} />}
-        {screen === "prefs" && <SimpleScreen title="Preferences" onExtras={goExtras} />}
+        {screen === "prefs" && <PrefsScreen onExtras={goExtras} theme={theme} onThemeChange={setTheme} camera={camera} onCameraChange={setCamera} pixelSize={pixelSize} onPixelSizeChange={setPixelSize} perspective={perspective} onPerspectiveChange={setPerspective} />}
       </LCDScreen>
     </div>
   );
