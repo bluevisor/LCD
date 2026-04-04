@@ -10,7 +10,7 @@ import {
 const font = new BitmapFont("3x5");
 
 const W = 32;
-const H = 16;
+const H = 30;
 
 const CAMERAS: string[] = ["straight", "isometric", "desk", "handheld"];
 
@@ -265,33 +265,27 @@ function TamagotchiInner({ onExit }: { onExit: () => void }) {
     }
 
     if (showStats && alive) {
-      // Stats display
       const labels = ["HNG", "HAP", "HLT"];
       const values = [4 - hunger, happiness, health];
       for (let row = 0; row < 3; row++) {
-        const ty = oy + 4 + row * 3;
-        font.drawText(fb, labels[row], ox, ty, { intensity: 1 });
-        // Draw 5-segment bar
+        const ty = oy + 6 + row * 6;
+        font.drawText(fb, labels[row], ox + 2, ty, { intensity: 1 });
         for (let s = 0; s < 5; s++) {
-          const bx = ox + 13 + s * 3;
+          const bx = ox + 15 + s * 3;
           const filled = s < values[row];
-          fb.fillRect(bx, ty, 2, 2, filled ? 1 : 0.2);
+          fb.fillRect(bx, ty, 2, 4, filled ? 1 : 0.2);
         }
       }
-      // Age line
-      font.drawText(fb, `AGE ${age}`, ox, oy + 13, { intensity: 1 });
+      font.drawText(fb, `AGE ${age}`, ox + 2, oy + 24, { intensity: 1 });
     } else if (tempAnim === "attn" && alive) {
-      // Attention: show age + heart
-      font.drawText(fb, `AGE:${age}`, ox + 2, oy + 6, { intensity: 1 });
-      // Heart at right
+      font.drawText(fb, `AGE:${age}`, ox + 4, oy + 12, { intensity: 1 });
       const heart = ICONS_3X3[7];
       for (let dy = 0; dy < 3; dy++) {
         for (let dx = 0; dx < 3; dx++) {
-          if (heart[dy][dx]) fb.set(ox + 27 + dx, oy + 6 + dy, 1);
+          if (heart[dy][dx]) fb.set(ox + 26 + dx, oy + 12 + dy, 1);
         }
       }
     } else {
-      // Pet display area (y=4..13)
       let sprite: number[][];
       if (!alive) {
         sprite = PET_DEAD;
@@ -305,9 +299,9 @@ function TamagotchiInner({ onExit }: { onExit: () => void }) {
         sprite = PET_HAPPY;
       }
 
-      // Center sprite: 8x8 in 32x10 area (y=4..13)
+      // Center sprite in content area (y=5 to y=26)
       const spriteX = ox + Math.floor((W - 8) / 2) + (animFrame === 1 && alive && !sleeping ? 1 : 0);
-      const spriteY = oy + 5;
+      const spriteY = oy + Math.floor((4 + H - 27 - 8) / 2) + 5;
 
       for (let dy = 0; dy < 8; dy++) {
         for (let dx = 0; dx < 8; dx++) {
@@ -317,40 +311,37 @@ function TamagotchiInner({ onExit }: { onExit: () => void }) {
         }
       }
 
-      // ZZZ when sleeping
       if (sleeping && alive) {
-        font.drawText(fb, "Z", ox + 24, oy + 4, { intensity: 0.7 });
-        font.drawText(fb, "Z", ox + 26, oy + 6, { intensity: 0.5 });
+        font.drawText(fb, "Z", ox + 24, oy + 8, { intensity: 0.7 });
+        font.drawText(fb, "z", ox + 26, oy + 12, { intensity: 0.5 });
       }
 
-      // Sparkle animation for clean
       if (tempAnim === "clean") {
-        fb.set(ox + 5, oy + 5, 0.8);
-        fb.set(ox + 26, oy + 7, 0.8);
-        fb.set(ox + 8, oy + 11, 0.8);
-        fb.set(ox + 24, oy + 11, 0.8);
+        fb.set(ox + 5, oy + 8, 0.8);
+        fb.set(ox + 26, oy + 10, 0.8);
+        fb.set(ox + 8, oy + 18, 0.8);
+        fb.set(ox + 24, oy + 18, 0.8);
       }
 
-      // Pill for medicine
       if (tempAnim === "med") {
-        fb.fillRect(ox + 3, oy + 8, 3, 2, 0.8);
+        fb.fillRect(ox + 3, oy + 14, 3, 2, 0.8);
       }
 
-      // Death text
       if (!alive) {
-        font.drawText(fb, "RIP", ox + 11, oy + 4, { intensity: 1 });
+        font.drawText(fb, "RIP", ox + 10, oy + 7, { intensity: 1 });
       }
     }
 
-    // Divider line at y=14
+    // Divider line
     for (let x = 0; x < W; x++) {
-      fb.set(ox + x, oy + 14, 0.3);
+      fb.set(ox + x, oy + 27, 0.3);
     }
 
-    // Bottom row: age (y=15)
+    // Bottom row: age
     if (alive) {
-      const ageStr = String(age);
-      font.drawText(fb, ageStr, ox + W - ageStr.length * 4, oy + 15, { intensity: 0.6 });
+      const ageStr = `age ${age}`;
+      const aw = font.measureText(ageStr);
+      font.drawText(fb, ageStr, ox + Math.floor((W - aw) / 2), oy + 28, { intensity: 0.6 });
     }
 
     engine.markDirty();
@@ -381,15 +372,25 @@ export function TamagotchiMode({ onExit }: { onExit: () => void }) {
   }, []);
 
   return (
-    <LCDScreen
-      width={W}
-      height={H}
-      pixelSize={pixelSize}
-      theme={theme}
-      camera={CAMERAS[cameraIdx] as any}
-      perspective={perspective}
-    >
-      <TamagotchiInner onExit={onExit} />
-    </LCDScreen>
+    <div style={{
+      width: "100vw",
+      height: "100vh",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "#111",
+      overflow: "hidden",
+    }}>
+      <LCDScreen
+        width={W}
+        height={H}
+        pixelSize={pixelSize}
+        theme={theme}
+        camera={CAMERAS[cameraIdx] as any}
+        perspective={perspective}
+      >
+        <TamagotchiInner onExit={onExit} />
+      </LCDScreen>
+    </div>
   );
 }
