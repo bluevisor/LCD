@@ -13,8 +13,11 @@ const font = new BitmapFont();
 const W = 160;
 const H = 160;
 const STATUS_H = 12;
-const CONTENT_Y = STATUS_H + 1;
-const CONTENT_H = H - STATUS_H - 1;
+// Status bar sits at the bottom
+const STATUS_Y = H - STATUS_H; // 148
+// Content area: full height minus bottom status bar
+const CONTENT_Y = 0;
+const CONTENT_H = STATUS_Y; // 148
 
 const CAMERAS: string[] = ["straight", "isometric", "desk", "handheld"];
 const THEMES = ["green", "amber", "gray", "blue", "palm"];
@@ -48,9 +51,9 @@ function formatPalmTime(): string {
   return `${h}:${m < 10 ? "0" : ""}${m} ${ampm}`;
 }
 
-// --- Status Bar (bordered frame, PalmOS style) ---
+// --- Bottom Status Bar (authentic Palm OS: time + battery) ---
 
-function StatusBar({ title }: { title: string }) {
+function BottomStatusBar() {
   const { engine, offsetX, offsetY } = useLCD();
 
   useEffect(() => {
@@ -59,60 +62,60 @@ function StatusBar({ title }: { title: string }) {
     const oy = offsetY;
 
     // Clear status area
-    fb.fillRect(ox, oy, W, STATUS_H, 0);
+    fb.fillRect(ox, oy + STATUS_Y, W, STATUS_H, 0);
 
-    // 1px bordered rectangle around entire status bar
-    for (let x = 0; x < W; x++) {
-      fb.set(ox + x, oy, 1);
-      fb.set(ox + x, oy + STATUS_H - 1, 1);
-    }
-    for (let y = 0; y < STATUS_H; y++) {
-      fb.set(ox, oy + y, 1);
-      fb.set(ox + W - 1, oy + y, 1);
-    }
+    // Thin divider line at top of status bar
+    for (let x = 0; x < W; x++) fb.set(ox + x, oy + STATUS_Y, 1);
 
-    // Time on left
+    // Time on left: "10:40 pm"
     const timeStr = formatPalmTime();
-    font.drawText(fb, timeStr, ox + 3, oy + 3, { intensity: 1 });
+    font.drawText(fb, timeStr, ox + 2, oy + STATUS_Y + 3, { intensity: 1 });
 
-    // Battery icon: 3 filled segments + 1 hollow segment
-    const batX = ox + 55;
-    const batY = oy + 4;
-    for (let i = 0; i < 3; i++) {
-      fb.fillRect(batX + i * 4, batY, 3, 4, 1);
+    // "Battery" label
+    font.drawText(fb, "Battery", ox + 68, oy + STATUS_Y + 3, { intensity: 1 });
+
+    // Battery bar: filled rect showing ~80% charged
+    const batBarX = ox + 113;
+    const batBarY = oy + STATUS_Y + 3;
+    const batBarW = 40;
+    const batBarH = 7;
+    // Outline
+    for (let bx = 0; bx < batBarW; bx++) {
+      fb.set(batBarX + bx, batBarY, 1);
+      fb.set(batBarX + bx, batBarY + batBarH - 1, 1);
     }
-    // Hollow segment
-    for (let bx = 0; bx < 3; bx++) {
-      fb.set(batX + 12 + bx, batY, 1);
-      fb.set(batX + 12 + bx, batY + 3, 1);
+    for (let by = 0; by < batBarH; by++) {
+      fb.set(batBarX, batBarY + by, 1);
+      fb.set(batBarX + batBarW - 1, batBarY + by, 1);
     }
-    fb.set(batX + 12, batY + 1, 1);
-    fb.set(batX + 14, batY + 1, 1);
-    fb.set(batX + 12, batY + 2, 1);
-    fb.set(batX + 14, batY + 2, 1);
+    // Fill ~80%
+    const fillW = Math.floor(batBarW * 0.8) - 2;
+    fb.fillRect(batBarX + 1, batBarY + 1, fillW, batBarH - 2, 1);
 
-    // Category/title on right with dropdown triangle
-    const catText = title;
-    const catW = font.measureText(catText);
-    font.drawText(fb, catText, ox + W - catW - 12, oy + 3, { intensity: 1 });
+    engine.markDirty();
+  }, [engine, offsetX, offsetY]);
 
-    // Small triangle (inverted V)
-    const triX = ox + W - 8;
-    const triY = oy + 4;
-    fb.set(triX, triY, 1);
-    fb.set(triX + 1, triY, 1);
-    fb.set(triX + 2, triY, 1);
-    fb.set(triX + 3, triY, 1);
-    fb.set(triX + 4, triY, 1);
-    fb.set(triX + 1, triY + 1, 1);
-    fb.set(triX + 2, triY + 1, 1);
-    fb.set(triX + 3, triY + 1, 1);
-    fb.set(triX + 2, triY + 2, 1);
+  return null;
+}
 
-    // Thin divider line below status bar
-    for (let x = 0; x < W; x++) {
-      fb.set(ox + x, oy + STATUS_H, 1);
-    }
+// --- App Screen Header (left-aligned title + divider, no bordered frame) ---
+
+function AppHeader({ title }: { title: string }) {
+  const { engine, offsetX, offsetY } = useLCD();
+
+  useEffect(() => {
+    const fb = engine.fb;
+    const ox = offsetX;
+    const oy = offsetY;
+
+    // Title left-aligned
+    font.drawText(fb, title, ox + 3, oy + 2, { intensity: 1 });
+    // Bold effect
+    font.drawText(fb, title, ox + 4, oy + 2, { intensity: 1 });
+
+    // Thin divider below title
+    const divY = oy + 11;
+    for (let x = 0; x < W; x++) fb.set(ox + x, divY, 1);
 
     engine.markDirty();
   }, [engine, offsetX, offsetY, title]);
@@ -140,10 +143,43 @@ const APPS: AppItem[] = [
 const GRID_COLS = 3;
 const ICON_SCALE = 2;
 const ICON_PX = 8 * ICON_SCALE; // 16px at scale 2
+const CIRCLE_R = 12; // radius of circle border around icon
 const CELL_W = Math.floor(W / GRID_COLS); // ~53px
-const CELL_H = 36; // Icon + label + spacing (authentic Palm row height)
-const GRID_START_X = Math.floor((W - GRID_COLS * CELL_W) / 2);
-const GRID_START_Y = CONTENT_Y + 4;
+const CELL_H = 34; // icon + circle + label + spacing
+const GRID_START_Y = 4; // icons start at very top of LCD
+
+// Draw a circle outline using midpoint circle algorithm
+function drawCircle(
+  fb: { set: (x: number, y: number, v: number) => void },
+  cx: number,
+  cy: number,
+  r: number,
+  intensity: number
+) {
+  let x = 0;
+  let y = r;
+  let d = 1 - r;
+
+  const plot = (px: number, py: number) => fb.set(px, py, intensity);
+
+  while (x <= y) {
+    plot(cx + x, cy + y);
+    plot(cx - x, cy + y);
+    plot(cx + x, cy - y);
+    plot(cx - x, cy - y);
+    plot(cx + y, cy + x);
+    plot(cx - y, cy + x);
+    plot(cx + y, cy - x);
+    plot(cx - y, cy - x);
+    if (d < 0) {
+      d += 2 * x + 3;
+    } else {
+      d += 2 * (x - y) + 5;
+      y--;
+    }
+    x++;
+  }
+}
 
 function HomeScreen({ onNavigate, onExit }: {
   onNavigate: (s: Screen) => void;
@@ -198,29 +234,36 @@ function HomeScreen({ onNavigate, onExit }: {
     const ox = offsetX;
     const oy = offsetY;
 
-    // Clear content area
-    fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
+    // Clear content area (everything above status bar)
+    fb.fillRect(ox, oy, W, CONTENT_H, 0);
 
     APPS.forEach((app, i) => {
       const col = i % GRID_COLS;
       const row = Math.floor(i / GRID_COLS);
-      const cx = GRID_START_X + col * CELL_W + Math.floor(CELL_W / 2);
-      const cy = GRID_START_Y + row * CELL_H;
+      // Cell center x
+      const cx = ox + Math.floor(CELL_W * col + CELL_W / 2);
+      // Icon top y
+      const iconTopY = oy + GRID_START_Y + row * CELL_H;
+      // Circle center: centered on the icon vertically
+      const circleCY = iconTopY + Math.floor(ICON_PX / 2);
       const isSel = i === selected;
 
-      // Inverted selection: black rect behind icon + label
+      // Inverted selection circle fill
       if (isSel) {
-        const selX = cx - Math.floor(ICON_PX / 2) - 2;
-        const selY = cy - 1;
-        const selW = ICON_PX + 4;
-        const selH = ICON_PX + 14;
-        fb.fillRect(ox + selX, oy + selY, selW, selH, 1);
+        // Fill a small square around the icon area for selection highlight
+        const selX = cx - CIRCLE_R - 1;
+        const selY = oy + GRID_START_Y + row * CELL_H - 2;
+        fb.fillRect(selX, selY, (CIRCLE_R + 1) * 2, ICON_PX + 4, 1);
       }
+
+      // Circle outline around icon
+      drawCircle(fb, cx, circleCY, CIRCLE_R, isSel ? 0 : 1);
 
       // Label centered below icon
       const labelW = font.measureText(app.name);
       const labelX = cx - Math.floor(labelW / 2);
-      font.drawText(fb, app.name, ox + labelX, oy + cy + ICON_PX + 3, {
+      const labelY = iconTopY + ICON_PX + 4;
+      font.drawText(fb, app.name, labelX, labelY, {
         intensity: isSel ? 0 : 1,
       });
     });
@@ -230,18 +273,18 @@ function HomeScreen({ onNavigate, onExit }: {
 
   return (
     <>
-      <StatusBar title="All" />
+      <BottomStatusBar />
       {APPS.map((app, i) => {
         const col = i % GRID_COLS;
         const row = Math.floor(i / GRID_COLS);
-        const cx = GRID_START_X + col * CELL_W + Math.floor(CELL_W / 2);
-        const cy = GRID_START_Y + row * CELL_H;
+        const cx = Math.floor(CELL_W * col + CELL_W / 2);
+        const iconTopY = GRID_START_Y + row * CELL_H;
         const iconX = cx - Math.floor(ICON_PX / 2);
         return (
           <LCDIcon
             key={app.icon}
             x={iconX}
-            y={cy}
+            y={iconTopY}
             name={app.icon}
             scale={ICON_SCALE}
             intensity={i === selected ? 0 : 1}
@@ -251,6 +294,11 @@ function HomeScreen({ onNavigate, onExit }: {
     </>
   );
 }
+
+// App screen content starts below the header
+const HEADER_H = 13; // title row (7px font + 2 pad + 1 divider + 3 margin)
+const APP_CONTENT_Y = HEADER_H;
+const APP_CONTENT_H = CONTENT_H - HEADER_H; // 148 - 13 = 135
 
 // --- Date Book Screen (day view) ---
 
@@ -270,8 +318,8 @@ function DateBookScreen({ onHome }: { onHome: () => void }) {
   useCancel(onHome);
 
   const ROW_H = 12;
-  const HEADER_H = 20; // Title + date + divider
-  const visibleCount = Math.floor((CONTENT_H - HEADER_H) / ROW_H);
+  const DATE_HEADER_H = 12; // date row + divider
+  const visibleCount = Math.floor((APP_CONTENT_H - DATE_HEADER_H) / ROW_H);
   const maxScroll = Math.max(0, TIME_SLOTS.length - visibleCount);
 
   const onUp = useCallback(() => {
@@ -296,7 +344,7 @@ function DateBookScreen({ onHome }: { onHome: () => void }) {
   }, [visibleCount, maxScroll]);
 
   useFocus({
-    rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
+    rect: { x: offsetX, y: APP_CONTENT_Y + offsetY, width: W, height: APP_CONTENT_H },
     order: 10,
     onUp, onDown,
   });
@@ -306,24 +354,24 @@ function DateBookScreen({ onHome }: { onHome: () => void }) {
     const ox = offsetX;
     const oy = offsetY;
 
-    fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
+    fb.fillRect(ox, APP_CONTENT_Y + oy, W, APP_CONTENT_H, 0);
 
     // Date header (centered)
     const dateStr = formatPalmDate(new Date());
     const dateW = font.measureText(dateStr);
     const dateX = ox + Math.floor((W - dateW) / 2);
-    font.drawText(fb, dateStr, dateX, CONTENT_Y + oy + 2, { intensity: 1 });
+    font.drawText(fb, dateStr, dateX, APP_CONTENT_Y + oy + 2, { intensity: 1 });
 
-    // Thin divider under date
-    const divY = CONTENT_Y + oy + 11;
+    // Navigation arrows
+    font.drawText(fb, "<", ox + 3, APP_CONTENT_Y + oy + 2, { intensity: 1 });
+    font.drawText(fb, ">", ox + W - 8, APP_CONTENT_Y + oy + 2, { intensity: 1 });
+
+    // Thin divider under date header
+    const divY = APP_CONTENT_Y + oy + 11;
     for (let x = ox; x < ox + W; x++) fb.set(x, divY, 1);
 
-    // "< >" arrows flanking date for day navigation
-    font.drawText(fb, "<", ox + 3, CONTENT_Y + oy + 2, { intensity: 1 });
-    font.drawText(fb, ">", ox + W - 8, CONTENT_Y + oy + 2, { intensity: 1 });
-
     // Time slots
-    const listY = CONTENT_Y + oy + HEADER_H;
+    const listY = APP_CONTENT_Y + oy + DATE_HEADER_H;
     const visible = TIME_SLOTS.slice(scrollY, scrollY + visibleCount);
     visible.forEach((slot, i) => {
       const idx = scrollY + i;
@@ -335,22 +383,18 @@ function DateBookScreen({ onHome }: { onHome: () => void }) {
 
       const intensity = idx === selected ? 0 : 1;
 
-      // Time label
       font.drawText(fb, slot, ox + 2, rowY + 2, { intensity });
 
-      // Thin vertical divider after time column
       const divX = ox + 30;
       if (idx !== selected) {
         for (let dy = 0; dy < ROW_H; dy++) fb.set(divX, rowY + dy, 0.4);
       }
 
-      // Appointment text
       const appt = APPOINTMENTS[idx];
       if (appt) {
         font.drawText(fb, appt, ox + 34, rowY + 2, { intensity });
       }
 
-      // Horizontal row divider
       if (idx !== selected) {
         for (let x = ox; x < ox + W; x++) fb.set(x, rowY + ROW_H - 1, 0.3);
       }
@@ -359,7 +403,12 @@ function DateBookScreen({ onHome }: { onHome: () => void }) {
     engine.markDirty();
   }, [engine, offsetX, offsetY, selected, scrollY, visibleCount, maxScroll]);
 
-  return <StatusBar title="Date Book" />;
+  return (
+    <>
+      <AppHeader title="Date Book" />
+      <BottomStatusBar />
+    </>
+  );
 }
 
 // --- Address Book Screen ---
@@ -392,7 +441,7 @@ function AddressScreen({ onHome }: { onHome: () => void }) {
   const [scrollY, setScrollY] = useState(0);
   const { engine, offsetX, offsetY } = useLCD();
 
-  const visibleCount = Math.floor(CONTENT_H / CONTACT_ROW_H);
+  const visibleCount = Math.floor(APP_CONTENT_H / CONTACT_ROW_H);
   const maxScroll = Math.max(0, ADDRESS_DATA.length - visibleCount);
 
   const onCancel = useCallback(() => {
@@ -431,7 +480,7 @@ function AddressScreen({ onHome }: { onHome: () => void }) {
   }, []);
 
   useFocus({
-    rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
+    rect: { x: offsetX, y: APP_CONTENT_Y + offsetY, width: W, height: APP_CONTENT_H },
     order: 10,
     onUp, onDown, onActivate,
   });
@@ -441,14 +490,13 @@ function AddressScreen({ onHome }: { onHome: () => void }) {
     const ox = offsetX;
     const oy = offsetY;
 
-    fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
+    fb.fillRect(ox, APP_CONTENT_Y + oy, W, APP_CONTENT_H, 0);
 
     if (detail) {
       const c = ADDRESS_DATA[selected];
-      let cy = CONTENT_Y + oy + 4;
+      let cy = APP_CONTENT_Y + oy + 4;
       const cx = ox + 4;
 
-      // Name (bold effect: draw twice offset by 1)
       const fullName = `${c.firstName} ${c.lastName}`;
       font.drawText(fb, fullName, cx, cy, { intensity: 1 });
       font.drawText(fb, fullName, cx + 1, cy, { intensity: 1 });
@@ -474,7 +522,7 @@ function AddressScreen({ onHome }: { onHome: () => void }) {
       const visible = ADDRESS_DATA.slice(scrollY, scrollY + visibleCount);
       visible.forEach((c, i) => {
         const idx = scrollY + i;
-        const rowY = CONTENT_Y + oy + i * CONTACT_ROW_H;
+        const rowY = APP_CONTENT_Y + oy + i * CONTACT_ROW_H;
 
         if (idx === selected) {
           fb.fillRect(ox, rowY, W, CONTACT_ROW_H, 1);
@@ -484,7 +532,6 @@ function AddressScreen({ onHome }: { onHome: () => void }) {
         const displayName = `${c.lastName}, ${c.firstName}`;
         font.drawText(fb, displayName, ox + 4, rowY + 2, { intensity });
 
-        // Thin divider between rows
         if (idx !== selected) {
           for (let x = ox; x < ox + W; x++) fb.set(x, rowY + CONTACT_ROW_H - 1, 0.3);
         }
@@ -494,7 +541,12 @@ function AddressScreen({ onHome }: { onHome: () => void }) {
     engine.markDirty();
   }, [engine, offsetX, offsetY, selected, detail, scrollY, visibleCount, maxScroll]);
 
-  return <StatusBar title="Address" />;
+  return (
+    <>
+      <AppHeader title="Address" />
+      <BottomStatusBar />
+    </>
+  );
 }
 
 // --- To Do List Screen ---
@@ -526,7 +578,7 @@ function TodoScreen({ onHome }: { onHome: () => void }) {
 
   useCancel(onHome);
 
-  const visibleCount = Math.floor(CONTENT_H / TODO_ROW_H);
+  const visibleCount = Math.floor(APP_CONTENT_H / TODO_ROW_H);
   const maxScroll = Math.max(0, items.length - visibleCount);
 
   const onUp = useCallback(() => {
@@ -560,7 +612,7 @@ function TodoScreen({ onHome }: { onHome: () => void }) {
   }, [selected]);
 
   useFocus({
-    rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
+    rect: { x: offsetX, y: APP_CONTENT_Y + offsetY, width: W, height: APP_CONTENT_H },
     order: 10,
     onUp, onDown, onActivate,
   });
@@ -570,24 +622,22 @@ function TodoScreen({ onHome }: { onHome: () => void }) {
     const ox = offsetX;
     const oy = offsetY;
 
-    fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
+    fb.fillRect(ox, APP_CONTENT_Y + oy, W, APP_CONTENT_H, 0);
 
     const visible = items.slice(scrollY, scrollY + visibleCount);
     visible.forEach((item, i) => {
       const idx = scrollY + i;
-      const rowY = CONTENT_Y + oy + i * TODO_ROW_H;
+      const rowY = APP_CONTENT_Y + oy + i * TODO_ROW_H;
 
       if (idx === selected) {
         fb.fillRect(ox, rowY, W, TODO_ROW_H, 1);
       }
 
       const intensity = idx === selected ? 0 : 1;
-      const inv = idx === selected; // inverted row
+      const inv = idx === selected;
 
-      // Priority number
       font.drawText(fb, String(item.priority), ox + 3, rowY + 2, { intensity });
 
-      // Checkbox (7x7 box)
       const cbX = ox + 12;
       const cbY = rowY + 2;
       for (let bx = 0; bx < 7; bx++) {
@@ -598,15 +648,12 @@ function TodoScreen({ onHome }: { onHome: () => void }) {
         fb.set(cbX, cbY + by, inv ? 0 : 1);
         fb.set(cbX + 6, cbY + by, inv ? 0 : 1);
       }
-      // Check mark (filled center)
       if (item.checked) {
         fb.fillRect(cbX + 2, cbY + 2, 3, 3, inv ? 0 : 1);
       }
 
-      // Text
       font.drawText(fb, item.text, ox + 22, rowY + 2, { intensity });
 
-      // Row divider
       if (!inv) {
         for (let x = ox; x < ox + W; x++) fb.set(x, rowY + TODO_ROW_H - 1, 0.3);
       }
@@ -615,7 +662,12 @@ function TodoScreen({ onHome }: { onHome: () => void }) {
     engine.markDirty();
   }, [engine, offsetX, offsetY, items, selected, scrollY, visibleCount, maxScroll]);
 
-  return <StatusBar title="To Do" />;
+  return (
+    <>
+      <AppHeader title="To Do" />
+      <BottomStatusBar />
+    </>
+  );
 }
 
 // --- Memo Pad Screen ---
@@ -674,7 +726,7 @@ function MemoPadScreen({ onHome }: { onHome: () => void }) {
   }, [viewing]);
 
   useFocus({
-    rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
+    rect: { x: offsetX, y: APP_CONTENT_Y + offsetY, width: W, height: APP_CONTENT_H },
     order: 10,
     onUp, onDown, onActivate,
   });
@@ -684,34 +736,31 @@ function MemoPadScreen({ onHome }: { onHome: () => void }) {
     const ox = offsetX;
     const oy = offsetY;
 
-    fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
+    fb.fillRect(ox, APP_CONTENT_Y + oy, W, APP_CONTENT_H, 0);
 
     if (viewing) {
       const memo = MEMOS[selected];
-      let cy = CONTENT_Y + oy + 2;
+      let cy = APP_CONTENT_Y + oy + 2;
 
-      // Title (bold: draw offset)
       font.drawText(fb, memo.title, ox + 4, cy, { intensity: 1 });
       font.drawText(fb, memo.title, ox + 5, cy, { intensity: 1 });
       const titleW = font.measureText(memo.title) + 1;
       for (let x = ox + 4; x < ox + 4 + titleW; x++) fb.set(x, cy + 8, 1);
       cy += 14;
 
-      // Thin divider
       for (let x = ox; x < ox + W; x++) fb.set(x, cy, 0.4);
       cy += 4;
 
-      // Body lines (scrollable)
       const lines = memo.body.split("\n");
       const visibleLines = lines.slice(memoScroll);
       for (const line of visibleLines) {
-        if (cy > CONTENT_Y + oy + CONTENT_H - 8) break;
+        if (cy > APP_CONTENT_Y + oy + APP_CONTENT_H - 8) break;
         font.drawText(fb, line, ox + 4, cy, { intensity: 1 });
         cy += 10;
       }
     } else {
       MEMOS.forEach((memo, i) => {
-        const rowY = CONTENT_Y + oy + i * MEMO_ROW_H;
+        const rowY = APP_CONTENT_Y + oy + i * MEMO_ROW_H;
 
         if (i === selected) {
           fb.fillRect(ox, rowY, W, MEMO_ROW_H, 1);
@@ -729,7 +778,12 @@ function MemoPadScreen({ onHome }: { onHome: () => void }) {
     engine.markDirty();
   }, [engine, offsetX, offsetY, selected, viewing, memoScroll]);
 
-  return <StatusBar title="Memo Pad" />;
+  return (
+    <>
+      <AppHeader title="Memo Pad" />
+      <BottomStatusBar />
+    </>
+  );
 }
 
 // --- Calculator Screen ---
@@ -745,10 +799,10 @@ const CALC_BUTTONS: string[][] = [
 const CALC_COLS = 4;
 const CALC_ROWS = 5;
 const CALC_BTN_W = Math.floor(W / CALC_COLS);
-const CALC_DISPLAY_H = 24;
-const CALC_DIVIDER_Y = CONTENT_Y + CALC_DISPLAY_H;
+const CALC_DISPLAY_H = 22;
+const CALC_DIVIDER_Y = APP_CONTENT_Y + CALC_DISPLAY_H;
 const CALC_GRID_Y = CALC_DIVIDER_Y + 1;
-const CALC_BTN_H = Math.floor((CONTENT_H - CALC_DISPLAY_H - 1) / CALC_ROWS);
+const CALC_BTN_H = Math.floor((APP_CONTENT_H - CALC_DISPLAY_H - 1) / CALC_ROWS);
 
 function CalcScreen({ onHome }: { onHome: () => void }) {
   const [display, setDisplay] = useState("0");
@@ -809,7 +863,6 @@ function CalcScreen({ onHome }: { onHome: () => void }) {
       });
       return;
     }
-    // digit
     setDisplay(d => {
       if (resetNext) { setResetNext(false); return label; }
       if (d === "0") return label;
@@ -843,7 +896,7 @@ function CalcScreen({ onHome }: { onHome: () => void }) {
   }, [selRow, selCol, pressButton]);
 
   useFocus({
-    rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
+    rect: { x: offsetX, y: APP_CONTENT_Y + offsetY, width: W, height: APP_CONTENT_H },
     order: 10,
     onUp, onDown, onLeft, onRight, onActivate,
   });
@@ -853,16 +906,15 @@ function CalcScreen({ onHome }: { onHome: () => void }) {
     const ox = offsetX;
     const oy = offsetY;
 
-    fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
+    fb.fillRect(ox, APP_CONTENT_Y + oy, W, APP_CONTENT_H, 0);
 
     // Display area
     const displayText = display.length > 10 ? display.slice(0, 10) : display;
     const textW = font.measureText(displayText, 2);
     const textX = ox + W - textW - 4;
-    const textY = CONTENT_Y + oy + Math.floor((CALC_DISPLAY_H - 14) / 2);
+    const textY = APP_CONTENT_Y + oy + Math.floor((CALC_DISPLAY_H - 14) / 2);
     font.drawText(fb, displayText, textX, textY, { scale: 2, intensity: 1 });
 
-    // Operator indicator
     if (operator) {
       const opDisplay: Record<string, string> = { "/": "\u00f7", "*": "\u00d7", "-": "-", "+": "+" };
       font.drawText(fb, opDisplay[operator] || operator, ox + 4, textY, { intensity: 0.6 });
@@ -885,7 +937,6 @@ function CalcScreen({ onHome }: { onHome: () => void }) {
           col === selCol || (row === 4 && col === 0 && selCol <= 1)
         );
 
-        // Thin button borders
         for (let i = 0; i < btnW; i++) {
           fb.set(bx + i, by, 0.4);
           fb.set(bx + i, by + CALC_BTN_H - 1, 0.4);
@@ -911,7 +962,12 @@ function CalcScreen({ onHome }: { onHome: () => void }) {
     engine.markDirty();
   }, [engine, offsetX, offsetY, display, operator, selRow, selCol]);
 
-  return <StatusBar title="Calculator" />;
+  return (
+    <>
+      <AppHeader title="Calculator" />
+      <BottomStatusBar />
+    </>
+  );
 }
 
 // --- Prefs Screen ---
@@ -934,7 +990,7 @@ function PrefsScreen({ onHome, theme, onThemeChange, camera, onCameraChange, pix
 
   const ROW_COUNT = 4;
   const ROW_SPACING = 14;
-  const FIRST_ROW_Y = CONTENT_Y + 6;
+  const FIRST_ROW_Y = APP_CONTENT_Y + 6;
 
   const getLabel = (row: number) => ["Theme", "Camera", "Pixels", "Persp."][row];
   const getValue = (row: number): string => {
@@ -980,7 +1036,7 @@ function PrefsScreen({ onHome, theme, onThemeChange, camera, onCameraChange, pix
   const onRight = useCallback(() => { cycleRight(selectedRow); return true; }, [selectedRow, cycleRight]);
 
   useFocus({
-    rect: { x: offsetX, y: CONTENT_Y + offsetY, width: W, height: CONTENT_H },
+    rect: { x: offsetX, y: APP_CONTENT_Y + offsetY, width: W, height: APP_CONTENT_H },
     order: 10,
     onUp, onDown, onLeft, onRight,
   });
@@ -990,7 +1046,7 @@ function PrefsScreen({ onHome, theme, onThemeChange, camera, onCameraChange, pix
     const ox = offsetX;
     const oy = offsetY;
 
-    fb.fillRect(ox, CONTENT_Y + oy, W, CONTENT_H, 0);
+    fb.fillRect(ox, APP_CONTENT_Y + oy, W, APP_CONTENT_H, 0);
 
     for (let row = 0; row < ROW_COUNT; row++) {
       const rowY = FIRST_ROW_Y + row * ROW_SPACING + oy;
@@ -999,7 +1055,6 @@ function PrefsScreen({ onHome, theme, onThemeChange, camera, onCameraChange, pix
       const valueW = font.measureText(value);
       const isSel = row === selectedRow;
 
-      // Selected row: inverted bar
       if (isSel) {
         fb.fillRect(ox, rowY - 2, W, ROW_SPACING, 1);
       }
@@ -1007,14 +1062,12 @@ function PrefsScreen({ onHome, theme, onThemeChange, camera, onCameraChange, pix
       font.drawText(fb, label, ox + 6, rowY, { intensity: isSel ? 0 : 1 });
       font.drawText(fb, value, ox + W - valueW - 6, rowY, { intensity: isSel ? 0 : 0.6 });
 
-      // Divider between rows
       if (!isSel && row < ROW_COUNT - 1) {
         const divY = rowY + ROW_SPACING - 3;
         for (let x = ox; x < ox + W; x++) fb.set(x, divY, 0.2);
       }
     }
 
-    // Hint at bottom
     const noticeY = FIRST_ROW_Y + ROW_COUNT * ROW_SPACING + 6 + oy;
     for (let x = ox; x < ox + W; x++) fb.set(x, noticeY - 3, 0.3);
     const hint = "Changes apply live";
@@ -1024,7 +1077,12 @@ function PrefsScreen({ onHome, theme, onThemeChange, camera, onCameraChange, pix
     engine.markDirty();
   }, [engine, offsetX, offsetY, selectedRow, theme, camera, pixelSize, perspective]);
 
-  return <StatusBar title="Preferences" />;
+  return (
+    <>
+      <AppHeader title="Preferences" />
+      <BottomStatusBar />
+    </>
+  );
 }
 
 // --- Main Palm Mode ---
