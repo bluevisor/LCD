@@ -782,14 +782,15 @@ function OptionsScreen({ onBack, theme, onThemeChange, camera, onCameraChange, p
 
 /* ── Main Export ──────────────────────────────────────────── */
 
-export function BlackBerryMode({ onExit, camera, setCamera, perspective, setPerspective }: {
+export function BlackBerryMode({ onExit, camera, setCamera, perspective, setPerspective, pixelSize, setPixelSize }: {
   onExit: () => void;
   camera: string;
   setCamera: (fn: (s: string) => string) => void;
   perspective: boolean;
   setPerspective: (fn: (s: boolean) => boolean) => void;
+  pixelSize: number;
+  setPixelSize: (fn: (s: number) => number) => void;
 }) {
-  const [pixelSize, setPixelSize] = useState(4);
   const [screen, setScreen] = useState<Screen>("home");
   const [theme, setTheme] = useState<ThemePresetName>("green");
 
