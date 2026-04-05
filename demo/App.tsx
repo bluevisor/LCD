@@ -142,11 +142,17 @@ function ModePicker({ onSelect, selected, setSelected, camera, perspective, pixe
 export default function App() {
   const [mode, setMode] = useState<Mode>("picker");
   const [pickerIdx, setPickerIdx] = useState(0);
-  const [pickerPixelSize, setPickerPixelSize] = useState(() => {
-    const vw = typeof window !== "undefined" ? window.innerWidth : 800;
-    const vh = typeof window !== "undefined" ? window.innerHeight : 600;
-    return Math.max(2, Math.floor(Math.min(vw / W, vh / H)));
-  });
+  const [pixelSizes, setPixelSizes] = useState<Record<string, number>>(() => ({
+    picker: Math.max(2, Math.floor(Math.min(
+      typeof window !== "undefined" ? window.innerWidth : 800,
+      typeof window !== "undefined" ? window.innerHeight : 600
+    ) / Math.max(W, H))),
+    nokia: 6, nokia9210: 3, newton: 3, palm: 4,
+    blackberry: 4, gameboy: 4, tamagotchi: 12, pager: 6,
+  }));
+  const setDevicePixelSize = useCallback((device: string, fn: (s: number) => number) => {
+    setPixelSizes(prev => ({ ...prev, [device]: fn(prev[device]) }));
+  }, []);
   const [camera, setCamera] = useState("straight");
   const [perspective, setPerspective] = useState(false);
 
@@ -155,9 +161,9 @@ export default function App() {
     if (mode !== "picker") return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "-" || e.key === "_") {
-        setPickerPixelSize(s => Math.max(2, s - 1));
+        setDevicePixelSize("picker", s => Math.max(2, s - 1));
       } else if (e.key === "=" || e.key === "+") {
-        setPickerPixelSize(s => Math.min(12, s + 1));
+        setDevicePixelSize("picker", s => Math.min(12, s + 1));
       } else if (e.key === "," || e.key === "<") {
         setCamera(c => {
           const idx = CAMERAS.indexOf(c);
@@ -178,14 +184,22 @@ export default function App() {
 
   const exitTo = useCallback(() => setMode("picker"), []);
 
-  if (mode === "nokia") return <NokiaMode onExit={exitTo} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
-  if (mode === "newton") return <NewtonMode onExit={exitTo} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
-  if (mode === "palm") return <PalmMode onExit={exitTo} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
-  if (mode === "nokia9210") return <Nokia9210Mode onExit={exitTo} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
-  if (mode === "blackberry") return <BlackBerryMode onExit={exitTo} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
-  if (mode === "gameboy") return <GameBoyMode onExit={exitTo} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
-  if (mode === "tamagotchi") return <TamagotchiMode onExit={exitTo} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
-  if (mode === "pager") return <PagerMode onExit={exitTo} camera={camera} setCamera={setCamera} perspective={perspective} setPerspective={setPerspective} />;
+  const modeProps = (key: string) => ({
+    onExit: exitTo,
+    camera, setCamera,
+    perspective, setPerspective,
+    pixelSize: pixelSizes[key],
+    setPixelSize: (fn: (s: number) => number) => setDevicePixelSize(key, fn),
+  });
+
+  if (mode === "nokia") return <NokiaMode {...modeProps("nokia")} />;
+  if (mode === "newton") return <NewtonMode {...modeProps("newton")} />;
+  if (mode === "palm") return <PalmMode {...modeProps("palm")} />;
+  if (mode === "nokia9210") return <Nokia9210Mode {...modeProps("nokia9210")} />;
+  if (mode === "blackberry") return <BlackBerryMode {...modeProps("blackberry")} />;
+  if (mode === "gameboy") return <GameBoyMode {...modeProps("gameboy")} />;
+  if (mode === "tamagotchi") return <TamagotchiMode {...modeProps("tamagotchi")} />;
+  if (mode === "pager") return <PagerMode {...modeProps("pager")} />;
   return (
     <ModePicker
       onSelect={setMode}
@@ -193,7 +207,7 @@ export default function App() {
       setSelected={setPickerIdx}
       camera={camera}
       perspective={perspective}
-      pixelSize={pickerPixelSize}
+      pixelSize={pixelSizes.picker}
     />
   );
 }
