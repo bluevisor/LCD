@@ -103,7 +103,7 @@ function PickerContent({ onSelect, selected, setSelected }: {
       }
     });
 
-    const footer = ",/. angle  \\ persp";
+    const footer = "-/+ size  ,/. angle  \\ persp";
     const fw = font.measureText(footer);
     font.drawText(fb, footer, ox + Math.floor((W - fw) / 2), oy + H - 9, { intensity: 0.3 });
 
@@ -113,26 +113,14 @@ function PickerContent({ onSelect, selected, setSelected }: {
   return null;
 }
 
-function ModePicker({ onSelect, selected, setSelected, camera, perspective }: {
+function ModePicker({ onSelect, selected, setSelected, camera, perspective, pixelSize }: {
   onSelect: (mode: Mode) => void;
   selected: number;
   setSelected: (i: number) => void;
   camera: string;
   perspective: boolean;
+  pixelSize: number;
 }) {
-  const [pixelSize, setPixelSize] = useState(4);
-
-  useEffect(() => {
-    const handleResize = () => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const px = Math.max(2, Math.floor(Math.min(vw / W, vh / H)));
-      setPixelSize(px);
-    };
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
 
   return (
     <div style={{
@@ -154,6 +142,11 @@ function ModePicker({ onSelect, selected, setSelected, camera, perspective }: {
 export default function App() {
   const [mode, setMode] = useState<Mode>("picker");
   const [pickerIdx, setPickerIdx] = useState(0);
+  const [pickerPixelSize, setPickerPixelSize] = useState(() => {
+    const vw = typeof window !== "undefined" ? window.innerWidth : 800;
+    const vh = typeof window !== "undefined" ? window.innerHeight : 600;
+    return Math.max(2, Math.floor(Math.min(vw / W, vh / H)));
+  });
   const [camera, setCamera] = useState("straight");
   const [perspective, setPerspective] = useState(false);
 
@@ -161,7 +154,11 @@ export default function App() {
   useEffect(() => {
     if (mode !== "picker") return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "," || e.key === "<") {
+      if (e.key === "-" || e.key === "_") {
+        setPickerPixelSize(s => Math.max(2, s - 1));
+      } else if (e.key === "=" || e.key === "+") {
+        setPickerPixelSize(s => Math.min(12, s + 1));
+      } else if (e.key === "," || e.key === "<") {
         setCamera(c => {
           const idx = CAMERAS.indexOf(c);
           return CAMERAS[(idx - 1 + CAMERAS.length) % CAMERAS.length];
@@ -196,6 +193,7 @@ export default function App() {
       setSelected={setPickerIdx}
       camera={camera}
       perspective={perspective}
+      pixelSize={pickerPixelSize}
     />
   );
 }
