@@ -22,7 +22,7 @@ const DIVIDER_X = LEFT_PANE_W;
 
 const CAMERAS: string[] = ["straight", "isometric", "desk", "handheld"];
 
-type Screen = "desktop" | "contacts" | "messaging" | "calendar" | "office" | "extras";
+type Screen = "desktop" | "phone" | "contacts" | "messaging" | "calendar" | "office" | "extras";
 
 /* ── helpers ─────────────────────────────────────────────── */
 
@@ -146,7 +146,7 @@ const DESKTOP_APPS = [
 ];
 
 const DESKTOP_SCREENS: Screen[] = [
-  "desktop", "contacts", "messaging", "calendar", "office", "extras",
+  "phone", "contacts", "messaging", "calendar", "office", "extras",
 ];
 
 function DesktopScreen({ onOpen, onExit }: {
@@ -168,7 +168,7 @@ function DesktopScreen({ onOpen, onExit }: {
   }, [selected]);
 
   const onActivate = useCallback(() => {
-    if (selected > 0) onOpen(DESKTOP_SCREENS[selected]);
+    onOpen(DESKTOP_SCREENS[selected]);
   }, [selected, onOpen]);
 
   useFocus({
@@ -235,6 +235,170 @@ function DesktopScreen({ onOpen, onExit }: {
     <>
       <MenuBar appName="Desktop" menuItems="File  Edit  View  Tools" />
       <StatusBar />
+    </>
+  );
+}
+
+/* ── Phone ──────────────────────────────────────────────── */
+
+const CALL_LOG = [
+  { name: "Grace Hopper", number: "+1 202 555 0119", time: "10:15", type: "in" },
+  { name: "Alan Turing", number: "+44 20 7946 0001", time: "09:42", type: "out" },
+  { name: "Unknown", number: "+1 555 0199", time: "Yesterday", type: "missed" },
+  { name: "Bob Kahn", number: "+1 202 555 0178", time: "Yesterday", type: "in" },
+  { name: "Claude Shannon", number: "+1 617 253 1000", time: "Mon", type: "out" },
+];
+
+function PhoneScreen({ onBack }: { onBack: () => void }) {
+  const { engine, offsetX, offsetY } = useLCD();
+  const [selected, setSelected] = useState(0);
+  const [dialNumber, setDialNumber] = useState("");
+  const [view, setView] = useState<"dialer" | "log">("dialer");
+
+  useCancel(useCallback(() => {
+    if (dialNumber.length > 0) {
+      setDialNumber("");
+    } else if (view === "log") {
+      setView("dialer");
+    } else {
+      onBack();
+    }
+  }, [dialNumber, view, onBack]));
+
+  // Number key input
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (view !== "dialer") return;
+      if (e.key >= "0" && e.key <= "9") {
+        setDialNumber(n => n.length < 20 ? n + e.key : n);
+      } else if (e.key === "Backspace" && dialNumber.length > 0) {
+        setDialNumber(n => n.slice(0, -1));
+      } else if (e.key === "*") {
+        setDialNumber(n => n + "*");
+      } else if (e.key === "#") {
+        setDialNumber(n => n + "#");
+      } else if (e.key === "+") {
+        setDialNumber(n => n.length === 0 ? "+" : n);
+      }
+    };
+    engine.addKeyListener(handler);
+    return () => engine.removeKeyListener(handler);
+  }, [engine, view, dialNumber]);
+
+  const onUp = useCallback(() => {
+    if (view === "log" && selected > 0) { setSelected(s => s - 1); return true; }
+    return false;
+  }, [view, selected]);
+
+  const onDown = useCallback(() => {
+    if (view === "log" && selected < CALL_LOG.length - 1) { setSelected(s => s + 1); return true; }
+    return false;
+  }, [view, selected]);
+
+  const onActivate = useCallback(() => {
+    if (view === "dialer") setView("log");
+  }, [view]);
+
+  const onRight = useCallback(() => {
+    if (view === "dialer") { setView("log"); setSelected(0); }
+  }, [view]);
+
+  const onLeft = useCallback(() => {
+    if (view === "log") setView("dialer");
+  }, [view]);
+
+  useFocus({
+    rect: { x: offsetX, y: offsetY + CONTENT_Y, width: W, height: CONTENT_H },
+    order: 10,
+    onUp, onDown, onActivate, onLeft, onRight,
+  });
+
+  useEffect(() => {
+    const fb = engine.fb;
+    const ox = offsetX;
+    const oy = offsetY + CONTENT_Y;
+    fb.fillRect(ox, oy, W, CONTENT_H, 0);
+
+    if (view === "dialer") {
+      // Left pane: dialer
+      const pw = LEFT_PANE_W;
+
+      // Number display
+      fb.fillRect(ox + 4, oy + 4, pw - 8, 14, 0);
+      for (let x = ox + 4; x < ox + pw - 4; x++) {
+        fb.set(x, oy + 4, 0.4); fb.set(x, oy + 17, 0.4);
+      }
+      for (let y = oy + 4; y <= oy + 17; y++) {
+        fb.set(ox + 4, y, 0.4); fb.set(ox + pw - 5, y, 0.4);
+      }
+      const numDisplay = dialNumber || "Enter number";
+      const numI = dialNumber ? 1 : 0.3;
+      const nw = font.measureText(numDisplay);
+      font.drawText(fb, numDisplay, ox + pw - 6 - nw, oy + 8, { intensity: numI });
+
+      // Keypad labels (visual only — actual input via keyboard)
+      const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
+      const kCols = 3;
+      const kW = Math.floor((pw - 16) / kCols);
+      const kH = 10;
+      const kStartY = oy + 22;
+      keys.forEach((k, i) => {
+        const col = i % kCols;
+        const row = Math.floor(i / kCols);
+        const kx = ox + 8 + col * kW;
+        const ky = kStartY + row * kH;
+        // Key border
+        for (let x = 0; x < kW - 2; x++) { fb.set(kx + x, ky, 0.3); fb.set(kx + x, ky + kH - 2, 0.3); }
+        for (let y = 0; y < kH - 1; y++) { fb.set(kx, ky + y, 0.3); fb.set(kx + kW - 3, ky + y, 0.3); }
+        font.drawText(fb, k, kx + Math.floor((kW - 2 - font.measureText(k)) / 2), ky + 2, { intensity: 0.7 });
+      });
+
+      // Hint
+      font.drawText(fb, "Right:Log", ox + 4, oy + CONTENT_H - 8, { intensity: 0.4 });
+
+      // Vertical divider
+      for (let y = oy; y < oy + CONTENT_H; y++) fb.set(ox + LEFT_PANE_W, y, 0.4);
+
+      // Right pane: mini call log preview
+      const rx = ox + LEFT_PANE_W + 4;
+      font.drawText(fb, "Recent Calls", rx, oy + 2, { intensity: 1 });
+      for (let x = rx; x < ox + W - 4; x++) fb.set(x, oy + 10, 0.3);
+      CALL_LOG.slice(0, 5).forEach((entry, i) => {
+        const ly = oy + 13 + i * 14;
+        const arrow = entry.type === "in" ? "<" : entry.type === "out" ? ">" : "x";
+        font.drawText(fb, arrow, rx, ly, { intensity: entry.type === "missed" ? 0.5 : 0.7 });
+        font.drawText(fb, entry.name, rx + 8, ly, { intensity: 1 });
+        font.drawText(fb, entry.time, rx + 8, ly + 7, { intensity: 0.5 });
+      });
+    } else {
+      // Full call log view
+      font.drawText(fb, "Call Log", ox + 4, oy + 2, { intensity: 1 });
+      for (let x = ox + 4; x < ox + W - 4; x++) fb.set(x, oy + 10, 0.4);
+
+      CALL_LOG.forEach((entry, i) => {
+        const ly = oy + 14 + i * 14;
+        if (i === selected) {
+          fb.fillRect(ox + 2, ly - 1, W - 4, 13, 0.15);
+        }
+        const arrow = entry.type === "in" ? "<-" : entry.type === "out" ? "->" : " x";
+        font.drawText(fb, arrow, ox + 4, ly, { intensity: entry.type === "missed" ? 0.5 : 0.7 });
+        font.drawText(fb, entry.name, ox + 18, ly, { intensity: 1 });
+        font.drawText(fb, entry.number, ox + 18, ly + 7, { intensity: 0.6 });
+        const tw = font.measureText(entry.time);
+        font.drawText(fb, entry.time, ox + W - 6 - tw, ly, { intensity: 0.5 });
+      });
+
+      font.drawText(fb, "Left:Dialer", ox + 4, oy + CONTENT_H - 8, { intensity: 0.4 });
+    }
+
+    engine.markDirty();
+  }, [engine, offsetX, offsetY, view, selected, dialNumber]);
+
+  return (
+    <>
+      <MenuBar appName="Telephone" menuItems="File  Edit  Tools" />
+      <StatusBar />
+      <Divider />
     </>
   );
 }
@@ -844,6 +1008,9 @@ export function Nokia9210Mode({ onExit, camera, setCamera, perspective, setPersp
 
         {screen === "desktop" && (
           <DesktopScreen onOpen={setScreen} onExit={onExit} />
+        )}
+        {screen === "phone" && (
+          <PhoneScreen onBack={goDesktop} />
         )}
         {screen === "contacts" && (
           <ContactsScreen onBack={goDesktop} />
